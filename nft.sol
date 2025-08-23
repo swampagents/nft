@@ -25,7 +25,7 @@ abstract contract Context {
     }
 }
 
-// File: @openzeppelin/contracts/access/Ownable.sol
+// File: modified @openzeppelin/contracts/access/Ownable.sol
 abstract contract Ownable is Context {
     address private _owner;
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
@@ -38,13 +38,6 @@ abstract contract Ownable is Context {
     modifier onlyOwner() {
         require(owner() == _msgSender(), "Ownable: caller is not the owner");
         _;
-    }
-    function renounceOwnership() public virtual onlyOwner {
-        _transferOwnership(address(0));
-    }
-    function transferOwnership(address newOwner) public virtual onlyOwner {
-        require(newOwner != address(0), "Ownable: new owner is the zero address");
-        _transferOwnership(newOwner);
     }
     function _transferOwnership(address newOwner) internal virtual {
         address oldOwner = _owner;
