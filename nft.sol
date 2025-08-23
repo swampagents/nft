@@ -405,18 +405,22 @@ contract BaseTickersNFT is ERC721, ERC2981, Ownable {
     function mint(string memory customText) public payable {
         uint256 textLength = bytes(customText).length;
         require(textLength >= 2 && textLength <= 6, "Ticker must be 2-6 characters");
-        require(isAlpha(customText), "Ticker must only contain uppercase letters");
-        require(mintsPerTicker[customText] < 11, "All colors for this ticker have been minted");
+        require(isAlpha(customText), "Ticker must only contain letters");
+        
+        // Convert to uppercase for consistency
+        string memory upperCaseText = toUpperCase(customText);
+        
+        require(mintsPerTicker[upperCaseText] < 11, "All colors for this ticker have been minted");
         require(_nextTokenId < MAX_SUPPLY, "Max supply reached");
         require(msg.value == MINT_PRICE, "Incorrect mint price");
 
-        string memory assignedHexcode = colors[mintsPerTicker[customText]];
-        string memory assignedColorName = colorNames[mintsPerTicker[customText]];
+        string memory assignedHexcode = colors[mintsPerTicker[upperCaseText]];
+        string memory assignedColorName = colorNames[mintsPerTicker[upperCaseText]];
         
         _safeMint(msg.sender, _nextTokenId);
-        tokenData[_nextTokenId] = NFTData(customText, assignedHexcode, assignedColorName);
+        tokenData[_nextTokenId] = NFTData(upperCaseText, assignedHexcode, assignedColorName);
         
-        mintsPerTicker[customText]++;
+        mintsPerTicker[upperCaseText]++;
         _nextTokenId++;
     }
 
@@ -495,11 +499,26 @@ contract BaseTickersNFT is ERC721, ERC2981, Ownable {
     function isAlpha(string memory str) internal pure returns (bool) {
         bytes memory b = bytes(str);
         for (uint i = 0; i < b.length; i++) {
-            if (b[i] < 0x41 || b[i] > 0x5A) { // A-Z
+            // Check if character is A-Z or a-z
+            if (!((b[i] >= 0x41 && b[i] <= 0x5A) || (b[i] >= 0x61 && b[i] <= 0x7A))) {
                 return false;
             }
         }
         return true;
+    }
+
+    function toUpperCase(string memory str) internal pure returns (string memory) {
+        bytes memory bStr = bytes(str);
+        bytes memory bUpper = new bytes(bStr.length);
+        for (uint i = 0; i < bStr.length; i++) {
+            // If lowercase letter (a-z), convert to uppercase
+            if (bStr[i] >= 0x61 && bStr[i] <= 0x7A) {
+                bUpper[i] = bytes1(uint8(bStr[i]) - 32);
+            } else {
+                bUpper[i] = bStr[i];
+            }
+        }
+        return string(bUpper);
     }
 
     function withdraw() public onlyOwner {
