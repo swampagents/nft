@@ -381,11 +381,11 @@ contract BaseTickersNFT is ERC721, ERC2981, Ownable {
 
     uint256 private _nextTokenId;
 
-    uint256 public constant MAX_SUPPLY = 10000;
+    uint256 public constant MAX_SUPPLY = 3333;
     uint256 public constant MINT_PRICE = 0.0021 ether;
 
     string[] private colors = [
-        "#FFD12F", "#0A0B0D", "#66C800", "#B1B7C3", "#b8a581", "#FC401F", "#FEA8CD", "#EEF0F3", "#B6F569", "#FFFFFF", "#3C8AFF"
+        "#FFD12F", "#0A0B0D", "#66C800", "#B1B7C3", "#B8A581", "#FC401F", "#FEA8CD", "#EEF0F3", "#B6F569", "#FFFFFF", "#3C8AFF"
     ];
 
     string[] private colorNames = [
@@ -452,33 +452,45 @@ contract BaseTickersNFT is ERC721, ERC2981, Ownable {
         return string(abi.encodePacked(_baseURI(), Base64.encode(bytes(json))));
     }
 
+    function getCharacterWidth(string memory char) internal pure returns (uint) {
+        if (bytes(char)[0] == 'I') {
+            return 32;
+        }
+        return 50;
+    }
+
     function generateSVG(NFTData memory data) internal view returns (string memory) {
         string memory fullText = string(abi.encodePacked('$', data.ticker));
         string memory svg = '<svg width="500" height="500" xmlns="http://www.w3.org/2000/svg">';
-        svg = string(abi.encodePacked(svg, '<rect width="100%" height="100%" fill="#0000ff"/>'));
+        svg = string(abi.encodePacked(svg, '<rect width="100%" height="100%" fill="#0000FF"/>'));
         
         // Add basemark logo
-        svg = string(abi.encodePacked(svg, '<g transform="translate(10, 455) scale(0.08)">'));
-        svg = string(abi.encodePacked(svg, '<path fill="#ffffff" d="', baseMarkPath, '"/>'));
+        svg = string(abi.encodePacked(svg, '<g transform="translate(350, 400) scale(0.08)">'));
+        svg = string(abi.encodePacked(svg, '<path fill="#FFFFFF" d="', baseMarkPath, '"/>'));
         svg = string(abi.encodePacked(svg, '</g>'));
 
         // Add centered text
         string memory textGroup = '<g transform="translate(0, 20)">';
-        uint256 totalWidth = 0;
+        uint totalWidth = 0;
+        uint[] memory charWidths = new uint[](bytes(fullText).length);
 
-        // This is a simplified width calculation. For real SVGs, each char path would have a different width.
         for (uint i = 0; i < bytes(fullText).length; i++) {
-            totalWidth += 50; 
+            string memory char = string(abi.encodePacked(bytes(fullText)[i]));
+            uint charWidth = getCharacterWidth(char);
+            charWidths[i] = charWidth;
+            totalWidth += charWidth;
         }
 
-        uint256 startX = (500 - totalWidth) / 2;
+        uint startX = (500 - totalWidth) / 2;
+        uint currentX = startX;
 
         for (uint i = 0; i < bytes(fullText).length; i++) {
             string memory char = string(abi.encodePacked(bytes(fullText)[i]));
             string memory pathData = characterPaths[char];
-            textGroup = string(abi.encodePacked(textGroup, '<g transform="translate(', (startX + i * 50).toString(), ', 190) scale(3.5)">'));
+            textGroup = string(abi.encodePacked(textGroup, '<g transform="translate(', currentX.toString(), ', 190) scale(3.5)">'));
             textGroup = string(abi.encodePacked(textGroup, '<path fill="', data.hexcode, '" d="', pathData, '"/>'));
             textGroup = string(abi.encodePacked(textGroup, '</g>'));
+            currentX += charWidths[i];
         }
         
         textGroup = string(abi.encodePacked(textGroup, '</g>'));
