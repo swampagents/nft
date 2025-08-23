@@ -2,119 +2,173 @@
 pragma solidity ^0.8.20;
 
 import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/token/ERC721/ERC721.sol";
+import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/access/Ownable.sol";
+import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/finance/ERC2981.sol";
 import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/utils/Strings.sol";
 import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/utils/Base64.sol";
 
-contract OnChainNFT is ERC721 {
+contract BaseTickersNFT is ERC721, ERC2981, Ownable {
     using Strings for uint256;
 
     uint256 private _nextTokenId;
 
+    uint256 public constant MAX_SUPPLY = 10000;
+    uint256 public constant MINT_PRICE = 0.0021 ether;
+
     string[] private colors = [
-        "#3c8aff",
-        "#ffffff",
-        "#eef0f3",
-        "#b8a581",
-        "#ffd12f",
-        "#dee1e7",
-        "#b1b7c3",
-        "#66c800",
-        "#b6f569",
-        "#717886",
-        "#5b616e",
-        "#fc401f",
-        "#fea8cd",
-        "#32353d",
-        "#0a0b0d"];
+        "#0a0b0d", "#66c800", "#eef0f3", "#b8a581", "#ffd12f",
+        "#b6f569", "#717886","#fc401f", "#fea8cd", "#b1b7c3",
+        "#5b616e", "#dee1e7", "#32353d", "#ffffff", "#3c8aff"
+    ];
 
-    uint256 public constant MAX_SUPPLY = 333;
-    mapping(address => uint256) private _mintsPerWallet;
+    string[] private colorNames = [
+        "Black", "Green", "Gray 10", "Tan", "Yellow",
+        "Lime", "Gray 50", "Red", "Pink", "Gray 30",
+        "Gray 60", "Gray 15", "Gray 80", "White", "Cerulean"
+    ];
 
-    string public backgroundColor = "#0000ff";
-
-    constructor() ERC721("OnChainNFT", "ONFT") {
-        _transferOwnership(msg.sender);
+    struct NFTData {
+        string ticker;
+        string hexcode;
+        string color;
     }
 
-    function totalSupply() public view returns (uint256) {
-        return _nextTokenId;
+    mapping(uint256 => NFTData) public tokenData;
+    mapping(string => uint256) public mintsPerTicker;
+    mapping(string => string) private characterPaths;
+
+    string private baseMarkPath = 'M616.78,120.78c-3.1-1.52-7.12-1.52-15.18-1.52h-250.64c-8.06,0-12.08,0-15.18,1.52-2.97,1.46-5.36,3.86-6.82,6.83-1.52,3.1-1.52,7.14-1.52,15.21v251.05c0,8.07,0,12.1,1.52,15.21,1.45,2.97,3.85,5.37,6.82,6.83,3.1,1.52,7.13,1.52,15.18,1.52h250.64c8.06,0,12.08,0,15.18-1.52,2.97-1.46,5.37-3.86,6.82-6.83,1.52-3.1,1.52-7.14,1.52-15.21v-251.05c0-8.07,0-12.1-1.52-15.21-1.45-2.97-3.85-5.37-6.82-6.83Z M944.22,120.78c-3.1-1.52-7.13-1.52-15.18-1.52h-250.64c-8.06,0-12.08,0-15.18,1.52-2.97,1.46-5.36,3.86-6.82,6.83-1.52,3.1-1.52,7.14-1.52,15.21v251.05c0,8.07,0,12.1,1.52,15.21,1.46,2.97,3.85,5.37,6.82,6.83,3.1,1.52,7.12,1.52,15.18,1.52h250.64c8.06,0,12.08,0,15.18-1.52,2.96-1.46,5.36-3.86,6.82-6.83,1.52-3.1,1.52-7.14,1.52-15.21v-251.05c0-8.07,0-12.1-1.52-15.21-1.45-2.97-3.85-5.37-6.82-6.83Z M1278.48,127.61c-1.46-2.97-3.85-5.37-6.82-6.83-3.1-1.52-7.12-1.52-15.18-1.52h-250.64c-8.06,0-12.08,0-15.18,1.52-2.97,1.46-5.36,3.86-6.82,6.83-1.52,3.1-1.52,7.14-1.52,15.21v251.05c0,8.07,0,12.1,1.52,15.21,1.45,2.97,3.85,5.37,6.82,6.83,3.1,1.52,7.13,1.52,15.18,1.52h250.64c8.06,0,12.08,0,15.18-1.52,2.97-1.46,5.36-3.86,6.82-6.83,1.52-3.1,1.52-7.14,1.52-15.21v-251.05c0-8.07,0-12.1-1.52-15.21Z M289.34,120.78c-3.1-1.52-7.13-1.52-15.18-1.52h-131.57c-8.05,0-12.08,0-15.18-1.52-2.97-1.46-5.36,3.86-6.82-6.83-1.52-3.1-1.52-7.14-1.52-15.21V23.55c0-8.07,0-12.1-1.52-15.21-1.45-2.97-3.85-5.37-6.82-6.83-3.1-1.52-7.13-1.52-15.18-1.52H23.52c-8.06,0-12.08,0-15.18,1.52-2.97,1.46-5.36,3.86-6.82,6.83-1.52,3.1-1.52,7.14-1.52,15.21v370.32c0,8.07,0,12.1,1.52,15.21,1.45,2.97,3.85,5.37,6.82,6.83,3.1,1.52,7.13,1.52,15.18,1.52h250.64c8.05,0,12.08,0,15.18-1.52,2.97-1.46,5.37-3.86,6.82-6.83,1.52-3.1,1.52-7.14,1.52-15.21v-251.05c0-8.07,0-12.1-1.52-15.21-1.45-2.97-3.85-5.37-6.82-6.83Z';
+
+    constructor() ERC721("Base Ticker Club", "TICKER") Ownable(msg.sender) {
+        _setDefaultRoyalty(msg.sender, 500); // 5%
+        _setupCharacterPaths();
     }
 
-    function mint() public {
+    function mint(string memory customText) public payable {
+        uint256 textLength = bytes(customText).length;
+        require(textLength >= 2 && textLength <= 6, "Ticker must be 2-6 characters");
+        require(isAlpha(customText), "Ticker must only contain uppercase letters");
+        require(mintsPerTicker[customText] < 15, "All colors for this ticker have been minted");
         require(_nextTokenId < MAX_SUPPLY, "Max supply reached");
-        require(_mintsPerWallet[msg.sender] < 3, "Max mints per wallet reached");
+        require(msg.value == MINT_PRICE, "Incorrect mint price");
 
-        _mintsPerWallet[msg.sender]++;
+        string memory assignedColor = colors[mintsPerTicker[customText]];
+        string memory assignedColorName = colorNames[mintsPerTicker[customText]];
+        
         _safeMint(msg.sender, _nextTokenId);
+        tokenData[_nextTokenId] = NFTData(customText, assignedColor, assignedColorName);
+        
+        mintsPerTicker[customText]++;
         _nextTokenId++;
     }
 
-    function random(string memory input) internal pure returns (uint256) {
-        return uint256(keccak256(abi.encodePacked(input)));
-    }
-
-    function generateSVG(uint256 tokenId) internal view returns (string memory) {
-        uint256 rand = random(string(abi.encodePacked(block.timestamp, msg.sender, tokenId)));
-        string memory color = colors[rand % colors.length];
-        uint256 svgIndex = rand % 3;
-
-        return getSVG(svgIndex, color);
-    }
-
-    function getSVG(uint256 svgIndex, string memory color) internal pure returns (string memory) {
-        if (svgIndex == 0) {
-            // Rectangle
-            return string(abi.encodePacked(
-                '<svg width="200" height="200" xmlns="http://www.w3.org/2000/svg">',
-                '<rect width="100%" height="100%" fill="',
-                color,
-                '" />',
-                '</svg>'
-            ));
-        } else if (svgIndex == 1) {
-            // Circle
-            return string(abi.encodePacked(
-                '<svg width="200" height="200" xmlns="http://www.w3.org/2000/svg">',
-                '<circle cx="100" cy="100" r="100" fill="',
-                color,
-                '" />',
-                '</svg>'
-            ));
-        } else {
-            // Star
-            return string(abi.encodePacked(
-                '<svg width="200" height="200" xmlns="http://www.w3.org/2000/svg">',
-                '<polygon points="100,10 40,198 190,78 10,78 160,198" style="fill:',
-                color,
-                ';" />',
-                '</svg>'
-            ));
-        }
+    function _baseURI() internal pure override returns (string memory) {
+        return "data:application/json;base64,";
     }
 
     function tokenURI(uint256 tokenId) public view override returns (string memory) {
         require(_exists(tokenId), "ERC721Metadata: URI query for nonexistent token");
 
-        string memory name = string(abi.encodePacked("OnChain NFT #", tokenId.toString()));
-        string memory description = "An example of an on-chain SVG NFT.";
-        string memory image = Base64.encode(bytes(generateSVG(tokenId)));
+        NFTData memory data = tokenData[tokenId];
+        string memory image = Base64.encode(bytes(generateSVG(data)));
+        
+        string memory attributes = string(abi.encodePacked(
+            '{"trait_type":"Ticker","value":"', data.ticker, '"},',
+            '{"trait_type":"Color","value":"', data.color, '"}'
+        ));
 
-        string memory json = Base64.encode(
-            bytes(
-                string(
-                    abi.encodePacked(
-                        '{"name": "',
-                        name,
-                        '", "description": "',
-                        description,
-                        '", "image": "data:image/svg+xml;base64,',
-                        image,
-                        '"}'
-                    )
-                )
-            )
-        );
+        string memory json = string(abi.encodePacked(
+            '{"name":"', data.ticker, ' #', (mintsPerTicker[data.ticker]).toString(), '",',
+            '"description":"A fully on-chain NFT with a custom ticker, stored on Base.",',
+            '"image":"data:image/svg+xml;base64,', image, '",',
+            '"attributes":[', attributes, ']}'
+        ));
 
-        return string(abi.encodePacked("data:application/json;base64,", json));
+        return string(abi.encodePacked(_baseURI(), Base64.encode(bytes(json))));
+    }
+
+    function generateSVG(NFTData memory data) internal view returns (string memory) {
+        string memory fullText = string(abi.encodePacked('$', data.text));
+        string memory svg = '<svg width="500" height="500" xmlns="http://www.w3.org/2000/svg">';
+        svg = string(abi.encodePacked(svg, '<rect width="100%" height="100%" fill="#0000ff"/>'));
+        
+        // Add basemark logo
+        svg = string(abi.encodePacked(svg, '<g transform="translate(10, 390) scale(0.08)">'));
+        svg = string(abi.encodePacked(svg, '<path fill="#ffffff" d="', baseMarkPath, '"/>'));
+        svg = string(abi.encodePacked(svg, '</g>'));
+
+        // Add centered text
+        string memory textGroup = '<g transform="translate(0, 20)">';
+        uint256 totalWidth = 0;
+
+        // This is a simplified width calculation. For real SVGs, each char path would have a different width.
+        for (uint i = 0; i < bytes(fullText).length; i++) {
+            totalWidth += 40; 
+        }
+
+        uint256 startX = (500 - totalWidth) / 2;
+
+        for (uint i = 0; i < bytes(fullText).length; i++) {
+            string memory char = string(abi.encodePacked(bytes(fullText)[i]));
+            string memory pathData = characterPaths[char];
+            textGroup = string(abi.encodePacked(textGroup, '<g transform="translate(', (startX + i * 40).toString(), ', 200) scale(0.4)">'));
+            textGroup = string(abi.encodePacked(textGroup, '<path fill="', data.color, '" d="', pathData, '"/>'));
+            textGroup = string(abi.encodePacked(textGroup, '</g>'));
+        }
+        
+        textGroup = string(abi.encodePacked(textGroup, '</g>'));
+        svg = string(abi.encodePacked(svg, textGroup));
+        svg = string(abi.encodePacked(svg, '</svg>'));
+        return svg;
+    }
+
+    function isAlpha(string memory str) internal pure returns (bool) {
+        bytes memory b = bytes(str);
+        for (uint i = 0; i < b.length; i++) {
+            if (b[i] < 0x41 || b[i] > 0x5A) { // A-Z
+                return false;
+            }
+        }
+        return true;
+    }
+
+    function withdraw() public onlyOwner {
+        (bool success, ) = payable(owner()).call{value: address(this).balance}("");
+        require(success, "Withdrawal failed");
+    }
+
+    function supportsInterface(bytes4 interfaceId) public view override(ERC721, ERC2981) returns (bool) {
+        return super.supportsInterface(interfaceId);
+    }
+
+    function _setupCharacterPaths() internal {
+        // Placeholder paths - these should be replaced with actual SVG path data for Doto-Bold.ttf
+        characterPaths["$"] = "M78.3,193.3c-2.5,0-5.1-0.9-7-2.8l-18.1-18.1c-3.9-3.9-3.9-10.2,0-14.1c3.9-3.9,10.2-3.9,14.1,0l18.1,18.1c3.9,3.9,3.9,10.2,0,14.1C83.4,192.4,80.8,193.3,78.3,193.3z M121.7,193.3c-2.5,0-5.1-0.9-7-2.8c-3.9-3.9-3.9-10.2,0-14.1l18.1-18.1c3.9-3.9,10.2-3.9,14.1,0c3.9,3.9,3.9,10.2,0,14.1l-18.1,18.1C126.8,192.4,124.2,193.3,121.7,193.3z M100,200c-55.2,0-100-44.8-100-100S44.8,0,100,0s100,44.8,100,100S155.2,200,100,200z M100,20c-44.1,0-80,35.9-80,80s35.9,80,80,80s80-35.9,80-80S144.1,20,100,20z";
+        characterPaths["A"] = "M100,0L0,200h20l20-50h120l20,50h20L100,0z M60,130l40-100l40,100H60z";
+        characterPaths["B"] = "M0,0v200h100c55,0,100-45,100-100S155,0,100,0H0z M20,20h80c44,0,80,36,80,80s-36,80-80,80H20V20z";
+        characterPaths["C"] = "M100,0C45,0,0,45,0,100s45,100,100,100h80v-20H100c-44,0-80-36-80-80s36-80,80-80h80V0H100z";
+        characterPaths["D"] = "M0,0v200h100c55,0,100-45,100-100S155,0,100,0H0z M20,20h80c44,0,80,36,80,80s-36,80-80,80H20V20z";
+        characterPaths["E"] = "M0,0v200h180v-20H20v-70h140v-20H20V20h160V0H0z";
+        characterPaths["F"] = "M0,0v200h20V110h140v-20H20V20h160V0H0z";
+        characterPaths["G"] = "M100,0C45,0,0,45,0,100s45,100,100,100h80v-20H100c-44,0-80-36-80-80s36-80,80-80h80V0H100z M120,110h60v20h-80v-80h20V110z";
+        characterPaths["H"] = "M0,0v200h20V110h160v90h20V0h-20v90H20V0H0z";
+        characterPaths["I"] = "M80,0v200h40V0H80z";
+        characterPaths["J"] = "M180,0v100c0,44-36,80-80,80H20v-20h80c33,0,60-27,60-60V0H180z";
+        characterPaths["K"] = "M0,0v200h20V120l80,80h20L40,100l80-100h-20L20,80V0H0z";
+        characterPaths["L"] = "M0,0v200h20V20h160v-20H0z";
+        characterPaths["M"] = "M0,0v200h20L100,50l80,150h20V0h-20v150L100,0L20,150V0H0z";
+        characterPaths["N"] = "M0,0v200h20V50l160,150h20V0h-20v150L20,0H0z";
+        characterPaths["O"] = "M100,0C45,0,0,45,0,100s45,100,100,100s100-45,100-100S155,0,100,0z M100,20c44,0,80,36,80,80s-36,80-80,80s-80-36-80-80S56,20,100,20z";
+        characterPaths["P"] = "M0,0v200h20V110h80c44,0,80-36,80-80S144,0,100,0H0z M20,20h80c33,0,60,27,60,60s-27,60-60,60H20V20z";
+        characterPaths["Q"] = "M100,0C45,0,0,45,0,100s45,100,100,100s100-45,100-100S155,0,100,0z M100,20c44,0,80,36,80,80s-36,80-80,80s-80-36-80-80S56,20,100,20z M120,130l60,60h-20l-60-60v20h-20v-40h40v20z";
+        characterPaths["R"] = "M0,0v200h20V110h80c44,0,80-36,80-80S144,0,100,0H0z M20,20h80c33,0,60,27,60,60s-27,60-60,60H20V20z M110,110l70,90h20l-70-90H110z";
+        characterPaths["S"] = "M180,0c-44,0-80,36-80,80v20c0,44,36,80,80,80h-20c-33,0-60-27-60-60V90c0-33-27-60-60-60H20v20h20c22,0,40,18,40,40v30c0,55,45,100,100,100h20c44,0,80-36,80-80v-20c0-44-36-80-80-80h20c33,0,60,27,60,60v30c0,33,27,60,60,60h20v-20h-20c-22,0-40-18-40-40V60C200,27,173,0,140,0H180z";
+        characterPaths["T"] = "M0,0h200v20H110v180h-20V20H0V0z";
+        characterPaths["U"] = "M20,0v100c0,44,36,80,80,80s80-36,80-80V0h-20v100c0,33-27,60-60,60s-60-27-60-60V0H20z";
+        characterPaths["V"] = "M0,0l100,200l100-200h-20L100,160L20,0H0z";
+        characterPaths["W"] = "M0,0l50,200h20l40-150l40,150h20l50-200h-20l-40,150L100,0L60,150L20,0H0z";
+        characterPaths["X"] = "M0,0l80,100L0,200h20l70-100l-70-100H0z M100,0l80,100L100,200h20l70-100l-70-100H100z";
+        characterPaths["Y"] = "M0,0l100,120L200,0h-20l-80,100L20,0H0z M90,110v90h20v-90L90,110z";
+        characterPaths["Z"] = "M0,0h200v20L20,180h180v20H0v-20l180-160H0V0z";
     }
 }
