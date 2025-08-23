@@ -1,11 +1,380 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/token/ERC721/ERC721.sol";
-import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/access/Ownable.sol";
-import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/finance/ERC2981.sol";
-import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/utils/Strings.sol";
-import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/utils/Base64.sol";
+// --- OpenZeppelin Contracts ---
+
+// File: @openzeppelin/contracts/utils/introspection/IERC165.sol
+interface IERC165 {
+    function supportsInterface(bytes4 interfaceId) external view returns (bool);
+}
+
+// File: @openzeppelin/contracts/utils/introspection/ERC165.sol
+abstract contract ERC165 is IERC165 {
+    function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
+        return interfaceId == type(IERC165).interfaceId;
+    }
+}
+
+// File: @openzeppelin/contracts/utils/Context.sol
+abstract contract Context {
+    function _msgSender() internal view virtual returns (address) {
+        return msg.sender;
+    }
+    function _msgData() internal view virtual returns (bytes calldata) {
+        return msg.data;
+    }
+}
+
+// File: @openzeppelin/contracts/access/Ownable.sol
+abstract contract Ownable is Context {
+    address private _owner;
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+    constructor() {
+        _transferOwnership(_msgSender());
+    }
+    function owner() public view virtual returns (address) {
+        return _owner;
+    }
+    modifier onlyOwner() {
+        require(owner() == _msgSender(), "Ownable: caller is not the owner");
+        _;
+    }
+    function renounceOwnership() public virtual onlyOwner {
+        _transferOwnership(address(0));
+    }
+    function transferOwnership(address newOwner) public virtual onlyOwner {
+        require(newOwner != address(0), "Ownable: new owner is the zero address");
+        _transferOwnership(newOwner);
+    }
+    function _transferOwnership(address newOwner) internal virtual {
+        address oldOwner = _owner;
+        _owner = newOwner;
+        emit OwnershipTransferred(oldOwner, newOwner);
+    }
+}
+
+// File: @openzeppelin/contracts/utils/Strings.sol
+library Strings {
+    bytes16 private constant _HEX_SYMBOLS = "0123456789abcdef";
+    function toString(uint256 value) internal pure returns (string memory) {
+        if (value == 0) {
+            return "0";
+        }
+        uint256 temp = value;
+        uint256 digits;
+        while (temp != 0) {
+            digits++;
+            temp /= 10;
+        }
+        bytes memory buffer = new bytes(digits);
+        while (value != 0) {
+            digits -= 1;
+            buffer[digits] = bytes1(uint8(48 + uint256(value % 10)));
+            value /= 10;
+        }
+        return string(buffer);
+    }
+}
+
+// File: @openzeppelin/contracts/utils/Base64.sol
+library Base64 {
+    string internal constant _TABLE = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    function encode(bytes memory data) internal pure returns (string memory) {
+        if (data.length == 0) return "";
+        uint256 encodedLen = 4 * ((data.length + 2) / 3);
+        bytes memory result = new bytes(encodedLen);
+        bytes memory table = bytes(_TABLE);
+        assembly {
+            let tablePtr := add(table, 1)
+            let resultPtr := add(result, 32)
+            let dataPtr := data
+            let endPtr := add(dataPtr, mload(data))
+            for {} lt(dataPtr, endPtr) {} {
+                dataPtr := add(dataPtr, 3)
+                let input := mload(dataPtr)
+                mstore8(resultPtr, mload(add(tablePtr, and(shr(18, input), 0x3F))))
+                resultPtr := add(resultPtr, 1)
+                mstore8(resultPtr, mload(add(tablePtr, and(shr(12, input), 0x3F))))
+                resultPtr := add(resultPtr, 1)
+                mstore8(resultPtr, mload(add(tablePtr, and(shr(6, input), 0x3F))))
+                resultPtr := add(resultPtr, 1)
+                mstore8(resultPtr, mload(add(tablePtr, and(input, 0x3F))))
+                resultPtr := add(resultPtr, 1)
+            }
+            switch mod(mload(data), 3)
+            case 1 { mstore8(sub(resultPtr, 2), 0x3d) mstore8(sub(resultPtr, 1), 0x3d) }
+            case 2 { mstore8(sub(resultPtr, 1), 0x3d) }
+        }
+        return string(result);
+    }
+}
+
+// File: @openzeppelin/contracts/token/ERC721/IERC721Receiver.sol
+interface IERC721Receiver {
+    function onERC721Received(address operator, address from, uint256 tokenId, bytes calldata data) external returns (bytes4);
+}
+
+// File: @openzeppelin/contracts/utils/Address.sol
+library Address {
+    function isContract(address account) internal view returns (bool) {
+        uint256 size;
+        assembly { size := extcodesize(account) }
+        return size > 0;
+    }
+    function sendValue(address payable recipient, uint256 amount) internal {
+        require(address(this).balance >= amount, "Address: insufficient balance");
+        (bool success, ) = recipient.call{value: amount}("");
+        require(success, "Address: unable to send value, recipient may have reverted");
+    }
+    function functionCall(address target, bytes memory data) internal returns (bytes memory) {
+      return functionCall(target, data, "Address: low-level call failed");
+    }
+    function functionCall(address target, bytes memory data, string memory errorMessage) internal returns (bytes memory) {
+        return functionCallWithValue(target, data, 0, errorMessage);
+    }
+    function functionCallWithValue(address target, bytes memory data, uint256 value) internal returns (bytes memory) {
+        return functionCallWithValue(target, data, value, "Address: low-level call with value failed");
+    }
+    function functionCallWithValue(address target, bytes memory data, uint256 value, string memory errorMessage) internal returns (bytes memory) {
+        require(address(this).balance >= value, "Address: insufficient balance for call");
+        require(isContract(target), "Address: call to non-contract");
+        (bool success, bytes memory returndata) = target.call{value: value}(data);
+        return _verifyCallResult(success, returndata, errorMessage);
+    }
+    function functionStaticCall(address target, bytes memory data) internal view returns (bytes memory) {
+        return functionStaticCall(target, data, "Address: low-level static call failed");
+    }
+    function functionStaticCall(address target, bytes memory data, string memory errorMessage) internal view returns (bytes memory) {
+        require(isContract(target), "Address: static call to non-contract");
+        (bool success, bytes memory returndata) = target.staticcall(data);
+        return _verifyCallResult(success, returndata, errorMessage);
+    }
+    function _verifyCallResult(bool success, bytes memory returndata, string memory errorMessage) private pure returns (bytes memory) {
+        if (success) {
+            return returndata;
+        } else {
+            if (returndata.length > 0) {
+                assembly {
+                    let returndata_size := mload(returndata)
+                    revert(add(32, returndata), returndata_size)
+                }
+            } else {
+                revert(errorMessage);
+            }
+        }
+    }
+}
+
+// File: @openzeppelin/contracts/token/ERC721/IERC721.sol
+interface IERC721 is IERC165 {
+    event Transfer(address indexed from, address indexed to, uint256 indexed tokenId);
+    event Approval(address indexed owner, address indexed approved, uint256 indexed tokenId);
+    event ApprovalForAll(address indexed owner, address indexed operator, bool approved);
+    function balanceOf(address owner) external view returns (uint256 balance);
+    function ownerOf(uint256 tokenId) external view returns (address owner);
+    function safeTransferFrom(address from, address to, uint256 tokenId) external;
+    function transferFrom(address from, address to, uint256 tokenId) external;
+    function approve(address to, uint256 tokenId) external;
+    function getApproved(uint256 tokenId) external view returns (address operator);
+    function setApprovalForAll(address operator, bool _approved) external;
+    function isApprovedForAll(address owner, address operator) external view returns (bool);
+    function safeTransferFrom(address from, address to, uint256 tokenId, bytes calldata data) external;
+}
+
+// File: @openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol
+interface IERC721Metadata is IERC721 {
+    function name() external view returns (string memory);
+    function symbol() external view returns (string memory);
+    function tokenURI(uint256 tokenId) external view returns (string memory);
+}
+
+// File: @openzeppelin/contracts/token/ERC721/ERC721.sol
+contract ERC721 is Context, ERC165, IERC721, IERC721Metadata {
+    using Address for address;
+    using Strings for uint256;
+    string private _name;
+    string private _symbol;
+    mapping(uint256 => address) private _owners;
+    mapping(address => uint256) private _balances;
+    mapping(uint256 => address) private _tokenApprovals;
+    mapping(address => mapping(address => bool)) private _operatorApprovals;
+    constructor(string memory name_, string memory symbol_) {
+        _name = name_;
+        _symbol = symbol_;
+    }
+    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC165, IERC165) returns (bool) {
+        return
+            interfaceId == type(IERC721).interfaceId ||
+            interfaceId == type(IERC721Metadata).interfaceId ||
+            super.supportsInterface(interfaceId);
+    }
+    function balanceOf(address owner) public view virtual override returns (uint256) {
+        require(owner != address(0), "ERC721: balance query for the zero address");
+        return _balances[owner];
+    }
+    function ownerOf(uint256 tokenId) public view virtual override returns (address) {
+        address owner = _owners[tokenId];
+        require(owner != address(0), "ERC721: owner query for nonexistent token");
+        return owner;
+    }
+    function name() public view virtual override returns (string memory) {
+        return _name;
+    }
+    function symbol() public view virtual override returns (string memory) {
+        return _symbol;
+    }
+    function tokenURI(uint256 tokenId) public view virtual override returns (string memory) {
+        require(_exists(tokenId), "ERC721Metadata: URI query for nonexistent token");
+        string memory baseURI = _baseURI();
+        return bytes(baseURI).length > 0 ? string(abi.encodePacked(baseURI, tokenId.toString())) : "";
+    }
+    function _baseURI() internal view virtual returns (string memory) {
+        return "";
+    }
+    function approve(address to, uint256 tokenId) public virtual override {
+        address owner = ERC721.ownerOf(tokenId);
+        require(to != owner, "ERC721: approval to current owner");
+        require(
+            _msgSender() == owner || isApprovedForAll(owner, _msgSender()),
+            "ERC721: approve caller is not owner nor approved for all"
+        );
+        _approve(to, tokenId);
+    }
+    function getApproved(uint256 tokenId) public view virtual override returns (address) {
+        require(_exists(tokenId), "ERC721: approved query for nonexistent token");
+        return _tokenApprovals[tokenId];
+    }
+    function setApprovalForAll(address operator, bool approved) public virtual override {
+        require(operator != _msgSender(), "ERC721: approve to caller");
+        _operatorApprovals[_msgSender()][operator] = approved;
+        emit ApprovalForAll(_msgSender(), operator, approved);
+    }
+    function isApprovedForAll(address owner, address operator) public view virtual override returns (bool) {
+        return _operatorApprovals[owner][operator];
+    }
+    function transferFrom(address from, address to, uint256 tokenId) public virtual override {
+        require(_isApprovedOrOwner(_msgSender(), tokenId), "ERC721: transfer caller is not owner nor approved");
+        _transfer(from, to, tokenId);
+    }
+    function safeTransferFrom(address from, address to, uint256 tokenId) public virtual override {
+        safeTransferFrom(from, to, tokenId, "");
+    }
+    function safeTransferFrom(address from, address to, uint256 tokenId, bytes memory _data) public virtual override {
+        require(_isApprovedOrOwner(_msgSender(), tokenId), "ERC721: transfer caller is not owner nor approved");
+        _safeTransfer(from, to, tokenId, _data);
+    }
+    function _safeTransfer(address from, address to, uint256 tokenId, bytes memory _data) internal virtual {
+        _transfer(from, to, tokenId);
+        require(_checkOnERC721Received(from, to, tokenId, _data), "ERC721: transfer to non ERC721Receiver implementer");
+    }
+    function _exists(uint256 tokenId) internal view virtual returns (bool) {
+        return _owners[tokenId] != address(0);
+    }
+    function _isApprovedOrOwner(address spender, uint256 tokenId) internal view virtual returns (bool) {
+        require(_exists(tokenId), "ERC721: operator query for nonexistent token");
+        address owner = ERC721.ownerOf(tokenId);
+        return (spender == owner || getApproved(tokenId) == spender || isApprovedForAll(owner, spender));
+    }
+    function _safeMint(address to, uint256 tokenId) internal virtual {
+        _safeMint(to, tokenId, "");
+    }
+    function _safeMint(address to, uint256 tokenId, bytes memory _data) internal virtual {
+        _mint(to, tokenId);
+        require(
+            _checkOnERC721Received(address(0), to, tokenId, _data),
+            "ERC721: transfer to non ERC721Receiver implementer"
+        );
+    }
+    function _mint(address to, uint256 tokenId) internal virtual {
+        require(to != address(0), "ERC721: mint to the zero address");
+        require(!_exists(tokenId), "ERC721: token already minted");
+        _beforeTokenTransfer(address(0), to, tokenId);
+        _balances[to] += 1;
+        _owners[tokenId] = to;
+        emit Transfer(address(0), to, tokenId);
+    }
+    function _burn(uint256 tokenId) internal virtual {
+        address owner = ERC721.ownerOf(tokenId);
+        _beforeTokenTransfer(owner, address(0), tokenId);
+        _approve(address(0), tokenId);
+        _balances[owner] -= 1;
+        delete _owners[tokenId];
+        emit Transfer(owner, address(0), tokenId);
+    }
+    function _transfer(address from, address to, uint256 tokenId) internal virtual {
+        require(ERC721.ownerOf(tokenId) == from, "ERC721: transfer of token that is not own");
+        require(to != address(0), "ERC721: transfer to the zero address");
+        _beforeTokenTransfer(from, to, tokenId);
+        _approve(address(0), tokenId);
+        _balances[from] -= 1;
+        _balances[to] += 1;
+        _owners[tokenId] = to;
+        emit Transfer(from, to, tokenId);
+    }
+    function _approve(address to, uint256 tokenId) internal virtual {
+        _tokenApprovals[tokenId] = to;
+        emit Approval(ERC721.ownerOf(tokenId), to, tokenId);
+    }
+    function _checkOnERC721Received(address from, address to, uint256 tokenId, bytes memory _data) private returns (bool) {
+        if (to.isContract()) {
+            try IERC721Receiver(to).onERC721Received(_msgSender(), from, tokenId, _data) returns (bytes4 retval) {
+                return retval == IERC721Receiver.onERC721Received.selector;
+            } catch (bytes memory reason) {
+                if (reason.length == 0) {
+                    revert("ERC721: transfer to non ERC721Receiver implementer");
+                } else {
+                    assembly {
+                        revert(add(32, reason), mload(reason))
+                    }
+                }
+            }
+        } else {
+            return true;
+        }
+    }
+    function _beforeTokenTransfer(address from, address to, uint256 tokenId) internal virtual {}
+}
+
+// File: @openzeppelin/contracts/interfaces/IERC2981.sol
+interface IERC2981 is IERC165 {
+    function royaltyInfo(uint256 tokenId, uint256 salePrice) external view returns (address receiver, uint256 royaltyAmount);
+}
+
+// File: @openzeppelin/contracts/token/common/ERC2981.sol
+abstract contract ERC2981 is IERC2981, ERC165 {
+    struct RoyaltyInfo {
+        address receiver;
+        uint96 royaltyFraction;
+    }
+    RoyaltyInfo private _defaultRoyaltyInfo;
+    mapping(uint256 => RoyaltyInfo) private _tokenRoyaltyInfo;
+    function supportsInterface(bytes4 interfaceId) public view virtual override(IERC165, IERC165) returns (bool) {
+        return interfaceId == type(IERC2981).interfaceId || super.supportsInterface(interfaceId);
+    }
+    function royaltyInfo(uint256 tokenId, uint256 salePrice) public view virtual override returns (address, uint256) {
+        RoyaltyInfo memory royalty = _tokenRoyaltyInfo[tokenId];
+        if (royalty.receiver == address(0)) {
+            royalty = _defaultRoyaltyInfo;
+        }
+        uint256 royaltyAmount = (salePrice * royalty.royaltyFraction) / _feeDenominator();
+        return (royalty.receiver, royaltyAmount);
+    }
+    function _feeDenominator() internal pure virtual returns (uint96) {
+        return 10000;
+    }
+    function _setDefaultRoyalty(address receiver, uint96 feeNumerator) internal virtual {
+        require(feeNumerator <= _feeDenominator(), "ERC2981: royalty fee will exceed salePrice");
+        require(receiver != address(0), "ERC2981: invalid receiver");
+        _defaultRoyaltyInfo = RoyaltyInfo(receiver, feeNumerator);
+    }
+    function _setTokenRoyalty(uint256 tokenId, address receiver, uint96 feeNumerator) internal virtual {
+        require(feeNumerator <= _feeDenominator(), "ERC2981: royalty fee will exceed salePrice");
+        require(receiver != address(0), "ERC2981: Invalid parameters");
+        _tokenRoyaltyInfo[tokenId] = RoyaltyInfo(receiver, feeNumerator);
+    }
+}
+
+// --- Main Contract ---
 
 contract BaseTickersNFT is ERC721, ERC2981, Ownable {
     using Strings for uint256;
@@ -39,8 +408,8 @@ contract BaseTickersNFT is ERC721, ERC2981, Ownable {
 
     string private baseMarkPath = 'M616.78,120.78c-3.1-1.52-7.12-1.52-15.18-1.52h-250.64c-8.06,0-12.08,0-15.18,1.52-2.97,1.46-5.36,3.86-6.82,6.83-1.52,3.1-1.52,7.14-1.52,15.21v251.05c0,8.07,0,12.1,1.52,15.21,1.45,2.97,3.85,5.37,6.82,6.83,3.1,1.52,7.13,1.52,15.18,1.52h250.64c8.06,0,12.08,0,15.18-1.52,2.97-1.46,5.37-3.86,6.82-6.83,1.52-3.1,1.52-7.14,1.52-15.21v-251.05c0-8.07,0-12.1-1.52-15.21-1.45-2.97-3.85-5.37-6.82-6.83Z M944.22,120.78c-3.1-1.52-7.13-1.52-15.18-1.52h-250.64c-8.06,0-12.08,0-15.18,1.52-2.97,1.46-5.36,3.86-6.82,6.83-1.52,3.1-1.52,7.14-1.52,15.21v251.05c0,8.07,0,12.1,1.52,15.21,1.46,2.97,3.85,5.37,6.82,6.83,3.1,1.52,7.12,1.52,15.18,1.52h250.64c8.06,0,12.08,0,15.18-1.52,2.96-1.46,5.36-3.86,6.82-6.83,1.52-3.1,1.52-7.14,1.52-15.21v-251.05c0-8.07,0-12.1-1.52-15.21-1.45-2.97-3.85-5.37-6.82-6.83Z M1278.48,127.61c-1.46-2.97-3.85-5.37-6.82-6.83-3.1-1.52-7.12-1.52-15.18-1.52h-250.64c-8.06,0-12.08,0-15.18,1.52-2.97,1.46-5.36,3.86-6.82,6.83-1.52,3.1-1.52,7.14-1.52,15.21v251.05c0,8.07,0,12.1,1.52,15.21,1.45,2.97,3.85,5.37,6.82,6.83,3.1,1.52,7.13,1.52,15.18,1.52h250.64c8.06,0,12.08,0,15.18-1.52,2.97-1.46,5.36-3.86,6.82-6.83,1.52-3.1,1.52-7.14,1.52-15.21v-251.05c0-8.07,0-12.1-1.52-15.21Z M289.34,120.78c-3.1-1.52-7.13-1.52-15.18-1.52h-131.57c-8.05,0-12.08,0-15.18-1.52-2.97-1.46-5.36,3.86-6.82-6.83-1.52-3.1-1.52-7.14-1.52-15.21V23.55c0-8.07,0-12.1-1.52-15.21-1.45-2.97-3.85-5.37-6.82-6.83-3.1-1.52-7.13-1.52-15.18-1.52H23.52c-8.06,0-12.08,0-15.18,1.52-2.97,1.46-5.36,3.86-6.82,6.83-1.52,3.1-1.52,7.14-1.52,15.21v370.32c0,8.07,0,12.1,1.52,15.21,1.45,2.97,3.85,5.37,6.82,6.83,3.1,1.52,7.13,1.52,15.18,1.52h250.64c8.05,0,12.08,0,15.18-1.52,2.97-1.46,5.37-3.86,6.82-6.83,1.52-3.1,1.52-7.14,1.52-15.21v-251.05c0-8.07,0-12.1-1.52-15.21-1.45-2.97-3.85-5.37-6.82-6.83Z';
 
-    constructor() ERC721("Base Ticker Club", "TICKER") Ownable(msg.sender) {
-        _setDefaultRoyalty(msg.sender, 500); // 5%
+    constructor() ERC721("Base Ticker Club", "TICKER") {
+        _setDefaultRoyalty(_msgSender(), 500); // 5%
         _setupCharacterPaths();
     }
 
@@ -52,11 +421,11 @@ contract BaseTickersNFT is ERC721, ERC2981, Ownable {
         require(_nextTokenId < MAX_SUPPLY, "Max supply reached");
         require(msg.value == MINT_PRICE, "Incorrect mint price");
 
-        string memory assignedColor = colors[mintsPerTicker[customText]];
+        string memory assignedHexcode = colors[mintsPerTicker[customText]];
         string memory assignedColorName = colorNames[mintsPerTicker[customText]];
         
         _safeMint(msg.sender, _nextTokenId);
-        tokenData[_nextTokenId] = NFTData(customText, assignedColor, assignedColorName);
+        tokenData[_nextTokenId] = NFTData(customText, assignedHexcode, assignedColorName);
         
         mintsPerTicker[customText]++;
         _nextTokenId++;
@@ -88,20 +457,17 @@ contract BaseTickersNFT is ERC721, ERC2981, Ownable {
     }
 
     function generateSVG(NFTData memory data) internal view returns (string memory) {
-        string memory fullText = string(abi.encodePacked('$', data.text));
+        string memory fullText = string(abi.encodePacked('$', data.ticker));
         string memory svg = '<svg width="500" height="500" xmlns="http://www.w3.org/2000/svg">';
         svg = string(abi.encodePacked(svg, '<rect width="100%" height="100%" fill="#0000ff"/>'));
         
-        // Add basemark logo
         svg = string(abi.encodePacked(svg, '<g transform="translate(10, 390) scale(0.08)">'));
         svg = string(abi.encodePacked(svg, '<path fill="#ffffff" d="', baseMarkPath, '"/>'));
         svg = string(abi.encodePacked(svg, '</g>'));
 
-        // Add centered text
         string memory textGroup = '<g transform="translate(0, 20)">';
         uint256 totalWidth = 0;
 
-        // This is a simplified width calculation. For real SVGs, each char path would have a different width.
         for (uint i = 0; i < bytes(fullText).length; i++) {
             totalWidth += 40; 
         }
@@ -112,7 +478,7 @@ contract BaseTickersNFT is ERC721, ERC2981, Ownable {
             string memory char = string(abi.encodePacked(bytes(fullText)[i]));
             string memory pathData = characterPaths[char];
             textGroup = string(abi.encodePacked(textGroup, '<g transform="translate(', (startX + i * 40).toString(), ', 200) scale(0.4)">'));
-            textGroup = string(abi.encodePacked(textGroup, '<path fill="', data.color, '" d="', pathData, '"/>'));
+            textGroup = string(abi.encodePacked(textGroup, '<path fill="', data.hexcode, '" d="', pathData, '"/>'));
             textGroup = string(abi.encodePacked(textGroup, '</g>'));
         }
         
@@ -142,7 +508,7 @@ contract BaseTickersNFT is ERC721, ERC2981, Ownable {
     }
 
     function _setupCharacterPaths() internal {
-        // Placeholder paths - these should be replaced with actual SVG path data for Doto-Bold.ttf
+        // Placeholder paths
         characterPaths["$"] = "M78.3,193.3c-2.5,0-5.1-0.9-7-2.8l-18.1-18.1c-3.9-3.9-3.9-10.2,0-14.1c3.9-3.9,10.2-3.9,14.1,0l18.1,18.1c3.9,3.9,3.9,10.2,0,14.1C83.4,192.4,80.8,193.3,78.3,193.3z M121.7,193.3c-2.5,0-5.1-0.9-7-2.8c-3.9-3.9-3.9-10.2,0-14.1l18.1-18.1c3.9-3.9,10.2-3.9,14.1,0c3.9,3.9,3.9,10.2,0,14.1l-18.1,18.1C126.8,192.4,124.2,193.3,121.7,193.3z M100,200c-55.2,0-100-44.8-100-100S44.8,0,100,0s100,44.8,100,100S155.2,200,100,200z M100,20c-44.1,0-80,35.9-80,80s35.9,80,80,80s80-35.9,80-80S144.1,20,100,20z";
         characterPaths["A"] = "M100,0L0,200h20l20-50h120l20,50h20L100,0z M60,130l40-100l40,100H60z";
         characterPaths["B"] = "M0,0v200h100c55,0,100-45,100-100S155,0,100,0H0z M20,20h80c44,0,80,36,80,80s-36,80-80,80H20V20z";
