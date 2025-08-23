@@ -434,9 +434,14 @@ contract BaseTickersNFT is ERC721, ERC2981, Ownable {
         NFTData memory data = tokenData[tokenId];
         string memory image = Base64.encode(bytes(generateSVG(data)));
         
+        // Extract first letter of ticker
+        string memory firstLetter = string(abi.encodePacked(bytes(data.ticker)[0]));
+        
         string memory attributes = string(abi.encodePacked(
             '{"trait_type":"Ticker","value":"', data.ticker, '"},',
-            '{"trait_type":"Color","value":"', data.color, '"}'
+            '{"trait_type":"Color","value":"', data.color, '"},',
+            '{"trait_type":"Hexcode","value":"', data.hexcode, '"},',
+            '{"trait_type":"First Letter","value":"', firstLetter, '"}'
         ));
 
         string memory json = string(abi.encodePacked(
