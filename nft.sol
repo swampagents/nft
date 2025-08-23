@@ -461,13 +461,16 @@ contract BaseTickersNFT is ERC721, ERC2981, Ownable {
         string memory svg = '<svg width="500" height="500" xmlns="http://www.w3.org/2000/svg">';
         svg = string(abi.encodePacked(svg, '<rect width="100%" height="100%" fill="#0000ff"/>'));
         
-        svg = string(abi.encodePacked(svg, '<g transform="translate(10, 390) scale(0.08)">'));
+        // Add basemark logo
+        svg = string(abi.encodePacked(svg, '<g transform="translate(10, 455) scale(0.08)">'));
         svg = string(abi.encodePacked(svg, '<path fill="#ffffff" d="', baseMarkPath, '"/>'));
         svg = string(abi.encodePacked(svg, '</g>'));
 
+        // Add centered text
         string memory textGroup = '<g transform="translate(0, 20)">';
         uint256 totalWidth = 0;
 
+        // This is a simplified width calculation. For real SVGs, each char path would have a different width.
         for (uint i = 0; i < bytes(fullText).length; i++) {
             totalWidth += 40; 
         }
@@ -508,7 +511,7 @@ contract BaseTickersNFT is ERC721, ERC2981, Ownable {
     }
 
     function _setupCharacterPaths() internal {
-        // Placeholder paths
+        // Placeholder paths - these should be replaced with actual SVG path data for Doto-Bold.ttf
         characterPaths["$"] = "M78.3,193.3c-2.5,0-5.1-0.9-7-2.8l-18.1-18.1c-3.9-3.9-3.9-10.2,0-14.1c3.9-3.9,10.2-3.9,14.1,0l18.1,18.1c3.9,3.9,3.9,10.2,0,14.1C83.4,192.4,80.8,193.3,78.3,193.3z M121.7,193.3c-2.5,0-5.1-0.9-7-2.8c-3.9-3.9-3.9-10.2,0-14.1l18.1-18.1c3.9-3.9,10.2-3.9,14.1,0c3.9,3.9,3.9,10.2,0,14.1l-18.1,18.1C126.8,192.4,124.2,193.3,121.7,193.3z M100,200c-55.2,0-100-44.8-100-100S44.8,0,100,0s100,44.8,100,100S155.2,200,100,200z M100,20c-44.1,0-80,35.9-80,80s35.9,80,80,80s80-35.9,80-80S144.1,20,100,20z";
         characterPaths["A"] = "M100,0L0,200h20l20-50h120l20,50h20L100,0z M60,130l40-100l40,100H60z";
         characterPaths["B"] = "M0,0v200h100c55,0,100-45,100-100S155,0,100,0H0z M20,20h80c44,0,80,36,80,80s-36,80-80,80H20V20z";
