@@ -462,7 +462,7 @@ contract BaseTickersNFT is ERC721, ERC2981, Ownable {
         svg = string(abi.encodePacked(svg, '<rect width="100%" height="100%" fill="#0000FF"/>'));
         
         // Add basemark logo
-        svg = string(abi.encodePacked(svg, '<g transform="translate(350, 400) scale(0.08)">'));
+        svg = string(abi.encodePacked(svg, '<g transform="translate(150, 400) scale(0.08)">'));
         svg = string(abi.encodePacked(svg, '<path fill="#FFFFFF" d="', baseMarkPath, '"/>'));
         svg = string(abi.encodePacked(svg, '</g>'));
 
