@@ -1,6 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+/**
+ *
+ *
+    Base Ticker Club
+    https://BaseTickerClub.com
+
+    NFT Contract Features:
+    Fully onchain NFT collection with limited custom tickers, stored on Base.
+    Mint function allows custom tickers of 2-6 characters limited to 11 mints per ticker.
+    Max of 3,333 NFTs generated onchain in collection.
+ */
+
+
 // --- OpenZeppelin Contracts ---
 
 // File: @openzeppelin/contracts/utils/introspection/IERC165.sol
@@ -444,7 +457,7 @@ contract BaseTickersNFT is ERC721, ERC2981, Ownable {
 
         string memory json = string(abi.encodePacked(
             '{"name":"', data.ticker, ' #', (mintsPerTicker[data.ticker]).toString(), '",',
-            '"description":"A fully on-chain NFT with a custom ticker, stored on Base.",',
+            '"description":"Fully onchain NFT collection with limited custom tickers, stored on Base.",',
             '"image":"data:image/svg+xml;base64,', image, '",',
             '"attributes":[', attributes, ']}'
         ));
@@ -499,7 +512,7 @@ contract BaseTickersNFT is ERC721, ERC2981, Ownable {
             if (bytes(char)[0] == 'I') {
                 currentX += 9;
             }
-            
+
             currentX += charWidths[i];
         }
         
