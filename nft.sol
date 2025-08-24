@@ -394,13 +394,36 @@ contract BaseTickersNFT is ERC721, ERC2981, Ownable {
     uint256 public constant MAX_SUPPLY = 3333;
     uint256 public constant MINT_PRICE = 0.0021 ether;
 
-    string[] private colors = [
-        "#FFD12F", "#0A0B0D", "#66C800", "#B1B7C3", "#B8A581", "#FC401F", "#FEA8CD", "#EEF0F3", "#B6F569", "#FFFFFF", "#3C8AFF"
-    ];
+    // Colors and names as pure lookups (avoid constructor-time storage writes)
+    function _colorHex(uint256 i) private pure returns (string memory) {
+        if (i == 0) return "#FFD12F";
+        if (i == 1) return "#0A0B0D";
+        if (i == 2) return "#66C800";
+        if (i == 3) return "#B1B7C3";
+        if (i == 4) return "#B8A581";
+        if (i == 5) return "#FC401F";
+        if (i == 6) return "#FEA8CD";
+        if (i == 7) return "#EEF0F3";
+        if (i == 8) return "#B6F569";
+        if (i == 9) return "#FFFFFF";
+        if (i == 10) return "#3C8AFF";
+        revert("c");
+    }
 
-    string[] private colorNames = [
-        "Yellow", "Black", "Green", "Gray 30", "Tan", "Red", "Pink", "Gray 10", "Lime", "White", "Cerulean"
-    ];
+    function _colorName(uint256 i) private pure returns (string memory) {
+        if (i == 0) return "Yellow";
+        if (i == 1) return "Black";
+        if (i == 2) return "Green";
+        if (i == 3) return "Gray 30";
+        if (i == 4) return "Tan";
+        if (i == 5) return "Red";
+        if (i == 6) return "Pink";
+        if (i == 7) return "Gray 10";
+        if (i == 8) return "Lime";
+        if (i == 9) return "White";
+        if (i == 10) return "Cerulean";
+        revert("c");
+    }
 
     struct NFTData {
         string ticker;
@@ -429,8 +452,9 @@ contract BaseTickersNFT is ERC721, ERC2981, Ownable {
         require(_nextTokenId < MAX_SUPPLY, "Max supply reached");
         require(msg.value == MINT_PRICE, "Incorrect mint price");
 
-        string memory assignedHexcode = colors[mintsPerTicker[upperCaseText]];
-        string memory assignedColorName = colorNames[mintsPerTicker[upperCaseText]];
+        uint256 idx = mintsPerTicker[upperCaseText];
+        string memory assignedHexcode = _colorHex(idx);
+        string memory assignedColorName = _colorName(idx);
         
         _safeMint(msg.sender, _nextTokenId);
         tokenData[_nextTokenId] = NFTData(upperCaseText, assignedHexcode, assignedColorName);
