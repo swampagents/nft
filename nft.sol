@@ -394,6 +394,9 @@ contract BaseTickersNFT is ERC721, ERC2981, Ownable {
     uint256 public constant MAX_SUPPLY = 3333;
     uint256 public constant MINT_PRICE = 0.0021 ether;
 
+    // Mint pause control
+    bool public mintPaused = true;
+
     // Colors and names as pure lookups (avoid constructor-time storage writes)
     function _colorHex(uint256 i) private pure returns (string memory) {
         if (i == 0) return "#FFD12F";
@@ -441,6 +444,7 @@ contract BaseTickersNFT is ERC721, ERC2981, Ownable {
     }
 
     function mint(string memory customText) public payable {
+        require(!mintPaused, "Minting is paused");
         uint256 textLength = bytes(customText).length;
         require(textLength >= 2 && textLength <= 6, "Ticker must be 2-6 characters");
         require(isAlpha(customText), "Ticker must only contain letters");
@@ -461,6 +465,15 @@ contract BaseTickersNFT is ERC721, ERC2981, Ownable {
         
         mintsPerTicker[upperCaseText]++;
         _nextTokenId++;
+    }
+
+    // Owner controls for pausing/unpausing minting
+    function pauseMint() external onlyOwner {
+        mintPaused = true;
+    }
+
+    function unpauseMint() external onlyOwner {
+        mintPaused = false;
     }
 
     function _baseURI() internal pure override returns (string memory) {
