@@ -495,6 +495,11 @@ contract BaseTickersNFT is ERC721, ERC2981, Ownable {
             textGroup = string(abi.encodePacked(textGroup, '<g transform="translate(', currentX.toString(), ', 190) scale(3.5)">'));
             textGroup = string(abi.encodePacked(textGroup, '<path fill="', data.hexcode, '" d="', pathData, '"/>'));
             textGroup = string(abi.encodePacked(textGroup, '</g>'));
+
+            if (bytes(char)[0] == 'I') {
+                currentX += 9;
+            }
+            
             currentX += charWidths[i];
         }
         
