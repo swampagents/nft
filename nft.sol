@@ -436,15 +436,19 @@ contract BaseTickersNFT is ERC721, ERC2981, Ownable {
 
     mapping(uint256 => NFTData) public tokenData;
     mapping(string => uint256) public mintsPerTicker;
-    mapping(string => string) private characterPaths;
+    // Glyphs and basemark storage set post-deploy by owner
+    mapping(bytes1 => string) private characterPaths;
+    string private basemarkPath;
+    bool public glyphsLocked;
 
     constructor() ERC721("Base Ticker Club", "TICKER") {
         _setDefaultRoyalty(_msgSender(), 500); // 5%
-        _setupCharacterPaths();
+        // glyphs loaded post-deploy; mint starts paused
     }
 
     function mint(string memory customText) public payable {
         require(!mintPaused, "Minting is paused");
+        require(glyphsLocked, "Glyphs not loaded");
         uint256 textLength = bytes(customText).length;
         require(textLength >= 2 && textLength <= 6, "Ticker must be 2-6 characters");
         require(isAlpha(customText), "Ticker must only contain letters");
@@ -506,10 +510,8 @@ contract BaseTickersNFT is ERC721, ERC2981, Ownable {
         return string(abi.encodePacked(_baseURI(), Base64.encode(bytes(json))));
     }
 
-    function getCharacterWidth(string memory char) internal pure returns (uint) {
-        if (bytes(char)[0] == 'I') {
-            return 32;
-        }
+    function getCharacterWidth(bytes1 ch) internal pure returns (uint) {
+        if (ch == bytes1("I")) return 32;
         return 50;
     }
 
@@ -518,10 +520,12 @@ contract BaseTickersNFT is ERC721, ERC2981, Ownable {
         string memory svg = '<svg width="500" height="500" xmlns="http://www.w3.org/2000/svg">';
         svg = string(abi.encodePacked(svg, '<rect width="100%" height="100%" fill="#0000FF"/>'));
         
-        // Add basemark logo
-        svg = string(abi.encodePacked(svg, '<g transform="translate(200, 400) scale(0.08)">'));
-        svg = string(abi.encodePacked(svg, '<path fill="#FFFFFF" d="M616.78,120.78c-3.1-1.52-7.12-1.52-15.18-1.52h-250.64c-8.06,0-12.08,0-15.18,1.52-2.97,1.46-5.36,3.86-6.82,6.83-1.52,3.1-1.52,7.14-1.52,15.21v251.05c0,8.07,0,12.1,1.52,15.21,1.45,2.97,3.85,5.37,6.82,6.83,3.1,1.52,7.13,1.52,15.18,1.52h250.64c8.06,0,12.08,0,15.18-1.52,2.97-1.46,5.37-3.86,6.82-6.83,1.52-3.1,1.52-7.14,1.52-15.21v-251.05c0-8.07,0-12.1-1.52-15.21-1.45-2.97-3.85-5.37-6.82-6.83Z M944.22,120.78c-3.1-1.52-7.13-1.52-15.18-1.52h-250.64c-8.06,0-12.08,0-15.18,1.52-2.97,1.46-5.36,3.86-6.82,6.83-1.52,3.1-1.52,7.14-1.52,15.21v251.05c0,8.07,0,12.1,1.52,15.21,1.46,2.97,3.85,5.37,6.82,6.83,3.1,1.52,7.12,1.52,15.18,1.52h250.64c8.06,0,12.08,0,15.18-1.52,2.96-1.46,5.36-3.86,6.82-6.83,1.52-3.1,1.52-7.14,1.52-15.21v-251.05c0-8.07,0-12.1-1.52-15.21-1.45-2.97-3.85-5.37-6.82-6.83Z M1278.48,127.61c-1.46-2.97-3.85-5.37-6.82-6.83-3.1-1.52-7.12-1.52-15.18-1.52h-250.64c-8.06,0-12.08,0-15.18,1.52-2.97,1.46-5.36,3.86-6.82,6.83-1.52,3.1-1.52,7.14-1.52,15.21v251.05c0,8.07,0,12.1,1.52,15.21,1.45,2.97,3.85,5.37,6.82,6.83,3.1,1.52,7.13,1.52,15.18,1.52h250.64c8.06,0,12.08,0,15.18-1.52,2.97-1.46,5.36-3.86,6.82-6.83,1.52-3.1,1.52-7.14,1.52-15.21v-251.05c0-8.07,0-12.1-1.52-15.21Z M289.34,120.78c-3.1-1.52-7.13-1.52-15.18-1.52h-131.57c-8.05,0-12.08,0-15.18-1.52-2.97-1.46-5.36,3.86-6.82-6.83-1.52-3.1-1.52-7.14-1.52-15.21V23.55c0-8.07,0-12.1-1.52-15.21-1.45-2.97-3.85-5.37-6.82-6.83-3.1-1.52-7.13-1.52-15.18-1.52H23.52c-8.06,0-12.08,0-15.18,1.52-2.97,1.46-5.36,3.86-6.82,6.83-1.52,3.1-1.52,7.14-1.52,15.21v370.32c0,8.07,0,12.1,1.52,15.21,1.45,2.97,3.85,5.37,6.82,6.83,3.1,1.52,7.13,1.52,15.18,1.52h250.64c8.05,0,12.08,0,15.18-1.52,2.97-1.46,5.37-3.86,6.82-6.83,1.52-3.1,1.52-7.14,1.52-15.21v-251.05c0-8.07,0-12.1-1.52-15.21-1.45-2.97-3.85-5.37-6.82-6.83Z"/>'));
-        svg = string(abi.encodePacked(svg, '</g>'));
+        // Add basemark logo if set
+        if (bytes(basemarkPath).length != 0) {
+            svg = string(abi.encodePacked(svg, '<g transform="translate(200, 400) scale(0.08)">'));
+            svg = string(abi.encodePacked(svg, '<path fill="#FFFFFF" d="', basemarkPath, '"/>'));
+            svg = string(abi.encodePacked(svg, '</g>'));
+        }
 
         // Add centered text
         string memory textGroup = '<g transform="translate(0, 20)">';
@@ -529,8 +533,8 @@ contract BaseTickersNFT is ERC721, ERC2981, Ownable {
         uint[] memory charWidths = new uint[](bytes(fullText).length);
 
         for (uint i = 0; i < bytes(fullText).length; i++) {
-            string memory char = string(abi.encodePacked(bytes(fullText)[i]));
-            uint charWidth = getCharacterWidth(char);
+            bytes1 ch = bytes(fullText)[i];
+            uint charWidth = getCharacterWidth(ch);
             charWidths[i] = charWidth;
             totalWidth += charWidth;
         }
@@ -539,10 +543,10 @@ contract BaseTickersNFT is ERC721, ERC2981, Ownable {
         uint currentX = startX;
 
         for (uint i = 0; i < bytes(fullText).length; i++) {
-            string memory char = string(abi.encodePacked(bytes(fullText)[i]));
-            string memory pathData = characterPaths[char];
+            bytes1 ch = bytes(fullText)[i];
+            string memory pathData = characterPaths[ch];
 
-            if (bytes(char)[0] == 'I') {
+            if (ch == bytes1("I")) {
                 currentX -= 9;
             }
 
@@ -550,7 +554,7 @@ contract BaseTickersNFT is ERC721, ERC2981, Ownable {
             textGroup = string(abi.encodePacked(textGroup, '<path fill="', data.hexcode, '" d="', pathData, '"/>'));
             textGroup = string(abi.encodePacked(textGroup, '</g>'));
 
-            if (bytes(char)[0] == 'I') {
+            if (ch == bytes1("I")) {
                 currentX += 9;
             }
 
@@ -593,529 +597,18 @@ contract BaseTickersNFT is ERC721, ERC2981, Ownable {
         require(success, "Withdrawal failed");
     }
 
-    // SVG path fragment constants
-    string private constant RECT_BLOCK = "v 0 q -0.0254,0 -0.0254,0 0,0 0,0.0254 v 1.8542 q 0,0.0254 0,0.0254 0,0 0.0254,0 h 1.8542 q 0.0254,0 0.0254,0 0,0 0,-0.0254 v -1.8542 q 0,-0.0254 0,-0.0254 0,0 -0.0254,0 z";
-    string private constant TALL_BLOCK = "v 0 q -0.0254,0 -0.0254,0 0,0 0,0.0254 v 1.8542 q 0,0.0254 0,0.0254 0,0 0.0254,0 H 2.549054 q 0.0254,0 0.0254,0 0,0 0,-0.0254 v -1.8542 q 0,-0.0254 0,-0.0254 0,0 -0.0254,0 z";
-
-    // Helper functions for building SVG paths with fragments
-    function getBlock(string memory x, string memory y) private pure returns (string memory) {
-        return string(abi.encodePacked("M ", x, ",", y, " ", RECT_BLOCK, " "));
-    }
-    function getTallBlock(string memory x, string memory y) private pure returns (string memory) {
-        return string(abi.encodePacked("M ", x, ",", y, " ", TALL_BLOCK, " "));
+    // Owner-only admin to set basemark and glyphs, then lock
+    function setBasemarkPath(string calldata path) external onlyOwner {
+        require(!glyphsLocked, "Locked");
+        basemarkPath = path;
     }
 
-    function _setupCharacterPaths() internal {
-        // SVG path data for Doto-Bold.ttf
-        
-        // Dollar sign
-        string memory pathDollar;
-        pathDollar = string(abi.encodePacked(pathDollar, getBlock("5.77", "1.90")));
-        pathDollar = string(abi.encodePacked(pathDollar, getBlock("3.23", "4.44")));
-        pathDollar = string(abi.encodePacked(pathDollar, getBlock("5.77", "4.44")));
-        pathDollar = string(abi.encodePacked(pathDollar, getBlock("8.31", "4.44")));
-        pathDollar = string(abi.encodePacked(pathDollar, getTallBlock("0.69", "6.98")));
-        pathDollar = string(abi.encodePacked(pathDollar, getBlock("5.77", "6.98")));
-        pathDollar = string(abi.encodePacked(pathDollar, getBlock("3.23", "9.52")));
-        pathDollar = string(abi.encodePacked(pathDollar, getBlock("5.77", "9.52")));
-        pathDollar = string(abi.encodePacked(pathDollar, getBlock("8.31", "9.52")));
-        pathDollar = string(abi.encodePacked(pathDollar, getBlock("5.77", "12.06")));
-        pathDollar = string(abi.encodePacked(pathDollar, getBlock("10.85", "12.06")));
-        pathDollar = string(abi.encodePacked(pathDollar, getBlock("3.23", "14.60")));
-        pathDollar = string(abi.encodePacked(pathDollar, getBlock("5.77", "14.60")));
-        pathDollar = string(abi.encodePacked(pathDollar, getBlock("8.31", "14.60")));
-        pathDollar = string(abi.encodePacked(pathDollar, getBlock("5.77", "17.14")));
-        characterPaths["$"] = pathDollar;
-        
-        // Letter A
-        string memory pathA;
-        pathA = string(abi.encodePacked(pathA, getBlock("5.77", "1.90")));
-        pathA = string(abi.encodePacked(pathA, getTallBlock("0.69", "4.44")));
-        pathA = string(abi.encodePacked(pathA, getBlock("10.85", "4.44")));
-        pathA = string(abi.encodePacked(pathA, getTallBlock("0.69", "6.98")));
-        pathA = string(abi.encodePacked(pathA, getBlock("10.85", "6.98")));
-        pathA = string(abi.encodePacked(pathA, getTallBlock("0.69", "9.52")));
-        pathA = string(abi.encodePacked(pathA, getBlock("3.23", "9.52")));
-        pathA = string(abi.encodePacked(pathA, getBlock("5.77", "9.52")));
-        pathA = string(abi.encodePacked(pathA, getBlock("8.31", "9.52")));
-        pathA = string(abi.encodePacked(pathA, getBlock("10.85", "9.52")));
-        pathA = string(abi.encodePacked(pathA, getTallBlock("0.69", "12.06")));
-        pathA = string(abi.encodePacked(pathA, getBlock("10.85", "12.06")));
-        pathA = string(abi.encodePacked(pathA, getTallBlock("0.69", "14.60")));
-        pathA = string(abi.encodePacked(pathA, getBlock("10.85", "14.60")));
-        pathA = string(abi.encodePacked(pathA, getTallBlock("0.69", "17.14")));
-        pathA = string(abi.encodePacked(pathA, getBlock("10.85", "17.14")));
-        characterPaths["A"] = pathA;
+    function setCharacterPath(bytes1 ch, string calldata path) external onlyOwner {
+        require(!glyphsLocked, "Locked");
+        characterPaths[ch] = path;
+    }
 
-        // Letter B
-        string memory pathB;
-        pathB = string(abi.encodePacked(pathB, getTallBlock("0.69", "1.90")));
-        pathB = string(abi.encodePacked(pathB, getBlock("3.23", "1.90")));
-        pathB = string(abi.encodePacked(pathB, getBlock("5.77", "1.90")));
-        pathB = string(abi.encodePacked(pathB, getBlock("8.31", "1.90")));
-        pathB = string(abi.encodePacked(pathB, getBlock("0.69", "4.44")));
-        pathB = string(abi.encodePacked(pathB, getBlock("10.85", "4.44")));
-        pathB = string(abi.encodePacked(pathB, getBlock("0.69", "6.98")));
-        pathB = string(abi.encodePacked(pathB, getBlock("10.85", "6.98")));
-        pathB = string(abi.encodePacked(pathB, getBlock("3.23", "9.52")));
-        pathB = string(abi.encodePacked(pathB, getBlock("5.77", "9.52")));
-        pathB = string(abi.encodePacked(pathB, getBlock("8.31", "9.52")));
-        pathB = string(abi.encodePacked(pathB, getBlock("0.69", "12.06")));
-        pathB = string(abi.encodePacked(pathB, getBlock("10.85", "12.06")));
-        pathB = string(abi.encodePacked(pathB, getBlock("0.69", "14.60")));
-        pathB = string(abi.encodePacked(pathB, getBlock("10.85", "14.60")));
-        pathB = string(abi.encodePacked(pathB, getTallBlock("0.69", "17.14")));
-        pathB = string(abi.encodePacked(pathB, getBlock("3.23", "17.14")));
-        pathB = string(abi.encodePacked(pathB, getBlock("5.77", "17.14")));
-        pathB = string(abi.encodePacked(pathB, getBlock("8.31", "17.14")));
-        characterPaths["B"] = pathB;
-
-        // Letter C
-        string memory pathC;
-        pathC = string(abi.encodePacked(pathC, getBlock("3.23", "1.90")));
-        pathC = string(abi.encodePacked(pathC, getBlock("5.77", "1.90")));
-        pathC = string(abi.encodePacked(pathC, getBlock("8.31", "1.90")));
-        pathC = string(abi.encodePacked(pathC, getTallBlock("0.69", "4.44")));
-        pathC = string(abi.encodePacked(pathC, getBlock("10.85", "4.44")));
-        pathC = string(abi.encodePacked(pathC, getTallBlock("0.69", "6.98")));
-        pathC = string(abi.encodePacked(pathC, getTallBlock("0.69", "9.52")));
-        pathC = string(abi.encodePacked(pathC, getTallBlock("0.69", "12.06")));
-        pathC = string(abi.encodePacked(pathC, getTallBlock("0.69", "14.60")));
-        pathC = string(abi.encodePacked(pathC, getBlock("10.85", "14.60")));
-        pathC = string(abi.encodePacked(pathC, getBlock("3.23", "17.14")));
-        pathC = string(abi.encodePacked(pathC, getBlock("5.77", "17.14")));
-        pathC = string(abi.encodePacked(pathC, getBlock("8.31", "17.14")));
-        characterPaths["C"] = pathC;
-        
-        // Letter D
-        string memory pathD;
-        pathD = string(abi.encodePacked(pathD, getTallBlock("0.69", "1.90")));
-        pathD = string(abi.encodePacked(pathD, getTallBlock("0.69", "4.44")));
-        pathD = string(abi.encodePacked(pathD, getTallBlock("0.69", "6.98")));
-        pathD = string(abi.encodePacked(pathD, getTallBlock("0.69", "9.52")));
-        pathD = string(abi.encodePacked(pathD, getTallBlock("0.69", "12.06")));
-        pathD = string(abi.encodePacked(pathD, getTallBlock("0.69", "14.60")));
-        pathD = string(abi.encodePacked(pathD, getBlock("3.23", "1.90")));
-        pathD = string(abi.encodePacked(pathD, getBlock("5.77", "1.90")));
-        pathD = string(abi.encodePacked(pathD, getBlock("8.31", "1.90")));
-        pathD = string(abi.encodePacked(pathD, getBlock("10.85", "4.44")));
-        pathD = string(abi.encodePacked(pathD, getBlock("10.85", "6.98")));
-        pathD = string(abi.encodePacked(pathD, getBlock("10.85", "9.52")));
-        pathD = string(abi.encodePacked(pathD, getBlock("10.85", "12.06")));
-        pathD = string(abi.encodePacked(pathD, getBlock("3.23", "17.14")));
-        pathD = string(abi.encodePacked(pathD, getBlock("5.77", "17.14")));
-        pathD = string(abi.encodePacked(pathD, getBlock("8.31", "17.14")));
-        characterPaths["D"] = pathD;
-        
-        // Letter E
-        string memory pathE;
-        pathE = string(abi.encodePacked(pathE, getTallBlock("0.69", "1.90")));
-        pathE = string(abi.encodePacked(pathE, getTallBlock("0.69", "4.44")));
-        pathE = string(abi.encodePacked(pathE, getTallBlock("0.69", "6.98")));
-        pathE = string(abi.encodePacked(pathE, getTallBlock("0.69", "9.52")));
-        pathE = string(abi.encodePacked(pathE, getTallBlock("0.69", "12.06")));
-        pathE = string(abi.encodePacked(pathE, getTallBlock("0.69", "14.60")));
-        pathE = string(abi.encodePacked(pathE, getTallBlock("0.69", "17.14")));
-        pathE = string(abi.encodePacked(pathE, getBlock("3.23", "1.90")));
-        pathE = string(abi.encodePacked(pathE, getBlock("5.77", "1.90")));
-        pathE = string(abi.encodePacked(pathE, getBlock("8.31", "1.90")));
-        pathE = string(abi.encodePacked(pathE, getBlock("10.85", "1.90")));
-        pathE = string(abi.encodePacked(pathE, getBlock("3.23", "9.52")));
-        pathE = string(abi.encodePacked(pathE, getBlock("5.77", "9.52")));
-        pathE = string(abi.encodePacked(pathE, getBlock("8.31", "9.52")));
-        pathE = string(abi.encodePacked(pathE, getBlock("3.23", "17.14")));
-        pathE = string(abi.encodePacked(pathE, getBlock("5.77", "17.14")));
-        pathE = string(abi.encodePacked(pathE, getBlock("8.31", "17.14")));
-        pathE = string(abi.encodePacked(pathE, getBlock("10.85", "17.14")));
-        characterPaths["E"] = pathE;
-        
-        // Letter F
-        string memory pathF;
-        pathF = string(abi.encodePacked(pathF, getTallBlock("0.69", "1.90")));
-        pathF = string(abi.encodePacked(pathF, getTallBlock("0.69", "4.44")));
-        pathF = string(abi.encodePacked(pathF, getTallBlock("0.69", "6.98")));
-        pathF = string(abi.encodePacked(pathF, getTallBlock("0.69", "9.52")));
-        pathF = string(abi.encodePacked(pathF, getTallBlock("0.69", "12.06")));
-        pathF = string(abi.encodePacked(pathF, getTallBlock("0.69", "14.60")));
-        pathF = string(abi.encodePacked(pathF, getTallBlock("0.69", "17.14")));
-        pathF = string(abi.encodePacked(pathF, getBlock("3.23", "1.90")));
-        pathF = string(abi.encodePacked(pathF, getBlock("5.77", "1.90")));
-        pathF = string(abi.encodePacked(pathF, getBlock("8.31", "1.90")));
-        pathF = string(abi.encodePacked(pathF, getBlock("10.85", "1.90")));
-        pathF = string(abi.encodePacked(pathF, getBlock("3.23", "9.52")));
-        pathF = string(abi.encodePacked(pathF, getBlock("5.77", "9.52")));
-        pathF = string(abi.encodePacked(pathF, getBlock("8.31", "9.52")));
-        characterPaths["F"] = pathF;
-
-        // Letter G
-        string memory pathG;
-        pathG = string(abi.encodePacked(pathG, getBlock("3.23", "1.90")));
-        pathG = string(abi.encodePacked(pathG, getBlock("5.77", "1.90")));
-        pathG = string(abi.encodePacked(pathG, getBlock("8.31", "1.90")));
-        pathG = string(abi.encodePacked(pathG, getTallBlock("0.69", "4.44")));
-        pathG = string(abi.encodePacked(pathG, getBlock("10.85", "4.44")));
-        pathG = string(abi.encodePacked(pathG, getTallBlock("0.69", "6.98")));
-        pathG = string(abi.encodePacked(pathG, getTallBlock("0.69", "9.52")));
-        pathG = string(abi.encodePacked(pathG, getBlock("6.31", "9.52")));
-        pathG = string(abi.encodePacked(pathG, getBlock("8.85", "9.52")));
-        pathG = string(abi.encodePacked(pathG, getBlock("10.85", "9.52")));
-        pathG = string(abi.encodePacked(pathG, getTallBlock("0.69", "12.06")));
-        pathG = string(abi.encodePacked(pathG, getBlock("10.85", "12.06")));
-        pathG = string(abi.encodePacked(pathG, getTallBlock("0.69", "14.60")));
-        pathG = string(abi.encodePacked(pathG, getBlock("10.85", "14.60")));
-        pathG = string(abi.encodePacked(pathG, getBlock("3.23", "17.14")));
-        pathG = string(abi.encodePacked(pathG, getBlock("5.77", "17.14")));
-        pathG = string(abi.encodePacked(pathG, getBlock("8.31", "17.14")));
-        characterPaths["G"] = pathG;
-        
-        // Letter H
-        string memory pathH;
-        pathH = string(abi.encodePacked(pathH, getTallBlock("0.69", "1.90")));
-        pathH = string(abi.encodePacked(pathH, getTallBlock("0.69", "4.44")));
-        pathH = string(abi.encodePacked(pathH, getTallBlock("0.69", "6.98")));
-        pathH = string(abi.encodePacked(pathH, getTallBlock("0.69", "9.52")));
-        pathH = string(abi.encodePacked(pathH, getTallBlock("0.69", "12.06")));
-        pathH = string(abi.encodePacked(pathH, getTallBlock("0.69", "14.60")));
-        pathH = string(abi.encodePacked(pathH, getTallBlock("0.69", "17.14")));
-        pathH = string(abi.encodePacked(pathH, getBlock("10.85", "1.90")));
-        pathH = string(abi.encodePacked(pathH, getBlock("10.85", "4.44")));
-        pathH = string(abi.encodePacked(pathH, getBlock("10.85", "6.98")));
-        pathH = string(abi.encodePacked(pathH, getBlock("3.23", "9.52")));
-        pathH = string(abi.encodePacked(pathH, getBlock("5.77", "9.52")));
-        pathH = string(abi.encodePacked(pathH, getBlock("8.31", "9.52")));
-        pathH = string(abi.encodePacked(pathH, getBlock("10.85", "9.52")));
-        pathH = string(abi.encodePacked(pathH, getBlock("10.85", "12.06")));
-        pathH = string(abi.encodePacked(pathH, getBlock("10.85", "14.60")));
-        pathH = string(abi.encodePacked(pathH, getBlock("10.85", "17.14")));
-        characterPaths["H"] = pathH;
-        
-        // Letter I
-        string memory pathI;
-        pathI = string(abi.encodePacked(pathI, getTallBlock("3.23", "1.90")));
-        pathI = string(abi.encodePacked(pathI, getTallBlock("5.77", "1.90")));
-        pathI = string(abi.encodePacked(pathI, getTallBlock("8.31", "1.90")));
-        pathI = string(abi.encodePacked(pathI, getBlock("5.77", "4.44")));
-        pathI = string(abi.encodePacked(pathI, getBlock("5.77", "6.98")));
-        pathI = string(abi.encodePacked(pathI, getBlock("5.77", "9.52")));
-        pathI = string(abi.encodePacked(pathI, getBlock("5.77", "12.06")));
-        pathI = string(abi.encodePacked(pathI, getBlock("5.77", "14.60")));
-        pathI = string(abi.encodePacked(pathI, getTallBlock("3.23", "17.14")));
-        pathI = string(abi.encodePacked(pathI, getTallBlock("5.77", "17.14")));
-        pathI = string(abi.encodePacked(pathI, getTallBlock("8.31", "17.14")));
-        characterPaths["I"] = pathI;
-        
-        // Letter J
-        string memory pathJ;
-        pathJ = string(abi.encodePacked(pathJ, getTallBlock("5.77", "1.90")));
-        pathJ = string(abi.encodePacked(pathJ, getTallBlock("8.31", "1.90")));
-        pathJ = string(abi.encodePacked(pathJ, getTallBlock("10.85", "1.90")));
-        pathJ = string(abi.encodePacked(pathJ, getBlock("8.31", "4.44")));
-        pathJ = string(abi.encodePacked(pathJ, getBlock("8.31", "6.98")));
-        pathJ = string(abi.encodePacked(pathJ, getBlock("8.31", "9.52")));
-        pathJ = string(abi.encodePacked(pathJ, getBlock("8.31", "12.06")));
-        pathJ = string(abi.encodePacked(pathJ, getBlock("0.69", "14.60")));
-        pathJ = string(abi.encodePacked(pathJ, getBlock("8.31", "14.60")));
-        pathJ = string(abi.encodePacked(pathJ, getTallBlock("3.23", "17.14")));
-        pathJ = string(abi.encodePacked(pathJ, getTallBlock("5.77", "17.14")));
-        characterPaths["J"] = pathJ;
-        
-        // Letter K
-        string memory pathK;
-        pathK = string(abi.encodePacked(pathK, getBlock("0.69", "1.90")));
-        pathK = string(abi.encodePacked(pathK, getBlock("10.85", "1.90")));
-        pathK = string(abi.encodePacked(pathK, getBlock("0.69", "4.44")));
-        pathK = string(abi.encodePacked(pathK, getBlock("8.31", "4.44")));
-        pathK = string(abi.encodePacked(pathK, getBlock("0.69", "6.98")));
-        pathK = string(abi.encodePacked(pathK, getBlock("5.77", "6.98")));
-        pathK = string(abi.encodePacked(pathK, getBlock("0.69", "9.52")));
-        pathK = string(abi.encodePacked(pathK, getBlock("3.23", "9.52")));
-        pathK = string(abi.encodePacked(pathK, getBlock("0.69", "12.06")));
-        pathK = string(abi.encodePacked(pathK, getBlock("5.77", "12.06")));
-        pathK = string(abi.encodePacked(pathK, getBlock("0.69", "14.60")));
-        pathK = string(abi.encodePacked(pathK, getBlock("8.31", "14.60")));
-        pathK = string(abi.encodePacked(pathK, getBlock("0.69", "17.14")));
-        pathK = string(abi.encodePacked(pathK, getBlock("10.85", "17.14")));
-        characterPaths["K"] = pathK;
-        
-        // Letter L
-        string memory pathL;
-        pathL = string(abi.encodePacked(pathL, getBlock("0.69", "1.90")));
-        pathL = string(abi.encodePacked(pathL, getBlock("0.69", "4.44")));
-        pathL = string(abi.encodePacked(pathL, getBlock("0.69", "6.98")));
-        pathL = string(abi.encodePacked(pathL, getBlock("0.69", "9.52")));
-        pathL = string(abi.encodePacked(pathL, getBlock("0.69", "12.06")));
-        pathL = string(abi.encodePacked(pathL, getBlock("0.69", "14.60")));
-        pathL = string(abi.encodePacked(pathL, getBlock("0.69", "17.14")));
-        pathL = string(abi.encodePacked(pathL, getTallBlock("3.23", "17.14")));
-        pathL = string(abi.encodePacked(pathL, getTallBlock("5.77", "17.14")));
-        pathL = string(abi.encodePacked(pathL, getTallBlock("8.31", "17.14")));
-        pathL = string(abi.encodePacked(pathL, getTallBlock("10.85", "17.14")));
-        characterPaths["L"] = pathL;
-
-        // Letter M
-        string memory pathM;
-        pathM = string(abi.encodePacked(pathM, getBlock("0.69", "1.90")));
-        pathM = string(abi.encodePacked(pathM, getBlock("10.85", "1.90")));
-        pathM = string(abi.encodePacked(pathM, getBlock("0.69", "4.44")));
-        pathM = string(abi.encodePacked(pathM, getBlock("10.85", "4.44")));
-        pathM = string(abi.encodePacked(pathM, getBlock("0.69", "6.98")));
-        pathM = string(abi.encodePacked(pathM, getBlock("3.23", "6.98")));
-        pathM = string(abi.encodePacked(pathM, getBlock("8.31", "6.98")));
-        pathM = string(abi.encodePacked(pathM, getBlock("10.85", "6.98")));
-        pathM = string(abi.encodePacked(pathM, getBlock("0.69", "9.52")));
-        pathM = string(abi.encodePacked(pathM, getBlock("5.77", "9.52")));
-        pathM = string(abi.encodePacked(pathM, getBlock("10.85", "9.52")));
-        pathM = string(abi.encodePacked(pathM, getBlock("0.69", "12.06")));
-        pathM = string(abi.encodePacked(pathM, getBlock("10.85", "12.06")));
-        pathM = string(abi.encodePacked(pathM, getBlock("0.69", "14.60")));
-        pathM = string(abi.encodePacked(pathM, getBlock("10.85", "14.60")));
-        pathM = string(abi.encodePacked(pathM, getBlock("0.69", "17.14")));
-        pathM = string(abi.encodePacked(pathM, getBlock("10.85", "17.14")));
-        characterPaths["M"] = pathM;
-        
-        // Letter N
-        string memory pathN;
-        pathN = string(abi.encodePacked(pathN, getBlock("0.69", "1.90")));
-        pathN = string(abi.encodePacked(pathN, getBlock("10.85", "1.90")));
-        pathN = string(abi.encodePacked(pathN, getBlock("0.69", "4.44")));
-        pathN = string(abi.encodePacked(pathN, getBlock("10.85", "4.44")));
-        pathN = string(abi.encodePacked(pathN, getBlock("0.69", "6.98")));
-        pathN = string(abi.encodePacked(pathN, getBlock("3.23", "6.98")));
-        pathN = string(abi.encodePacked(pathN, getBlock("10.85", "6.98")));
-        pathN = string(abi.encodePacked(pathN, getBlock("0.69", "9.52")));
-        pathN = string(abi.encodePacked(pathN, getBlock("5.77", "9.52")));
-        pathN = string(abi.encodePacked(pathN, getBlock("10.85", "9.52")));
-        pathN = string(abi.encodePacked(pathN, getBlock("0.69", "12.06")));
-        pathN = string(abi.encodePacked(pathN, getBlock("8.31", "12.06")));
-        pathN = string(abi.encodePacked(pathN, getBlock("10.85", "12.06")));
-        pathN = string(abi.encodePacked(pathN, getBlock("0.69", "14.60")));
-        pathN = string(abi.encodePacked(pathN, getBlock("10.85", "14.60")));
-        pathN = string(abi.encodePacked(pathN, getBlock("0.69", "17.14")));
-        pathN = string(abi.encodePacked(pathN, getBlock("10.85", "17.14")));
-        characterPaths["N"] = pathN;
-        
-        // Letter O
-        string memory pathO;
-        pathO = string(abi.encodePacked(pathO, getTallBlock("3.23", "1.90")));
-        pathO = string(abi.encodePacked(pathO, getTallBlock("5.77", "1.90")));
-        pathO = string(abi.encodePacked(pathO, getTallBlock("8.31", "1.90")));
-        pathO = string(abi.encodePacked(pathO, getBlock("0.69", "4.44")));
-        pathO = string(abi.encodePacked(pathO, getBlock("10.85", "4.44")));
-        pathO = string(abi.encodePacked(pathO, getBlock("0.69", "6.98")));
-        pathO = string(abi.encodePacked(pathO, getBlock("10.85", "6.98")));
-        pathO = string(abi.encodePacked(pathO, getBlock("0.69", "9.52")));
-        pathO = string(abi.encodePacked(pathO, getBlock("10.85", "9.52")));
-        pathO = string(abi.encodePacked(pathO, getBlock("0.69", "12.06")));
-        pathO = string(abi.encodePacked(pathO, getBlock("10.85", "12.06")));
-        pathO = string(abi.encodePacked(pathO, getBlock("0.69", "14.60")));
-        pathO = string(abi.encodePacked(pathO, getBlock("10.85", "14.60")));
-        pathO = string(abi.encodePacked(pathO, getTallBlock("3.23", "17.14")));
-        pathO = string(abi.encodePacked(pathO, getTallBlock("5.77", "17.14")));
-        pathO = string(abi.encodePacked(pathO, getTallBlock("8.31", "17.14")));
-        characterPaths["O"] = pathO;
-        
-        // Letter P
-        string memory pathP;
-        pathP = string(abi.encodePacked(pathP, getTallBlock("0.69", "1.90")));
-        pathP = string(abi.encodePacked(pathP, getTallBlock("3.23", "1.90")));
-        pathP = string(abi.encodePacked(pathP, getTallBlock("5.77", "1.90")));
-        pathP = string(abi.encodePacked(pathP, getTallBlock("8.31", "1.90")));
-        pathP = string(abi.encodePacked(pathP, getBlock("0.69", "4.44")));
-        pathP = string(abi.encodePacked(pathP, getBlock("10.85", "4.44")));
-        pathP = string(abi.encodePacked(pathP, getBlock("0.69", "6.98")));
-        pathP = string(abi.encodePacked(pathP, getBlock("10.85", "6.98")));
-        pathP = string(abi.encodePacked(pathP, getTallBlock("0.69", "9.52")));
-        pathP = string(abi.encodePacked(pathP, getTallBlock("3.23", "9.52")));
-        pathP = string(abi.encodePacked(pathP, getTallBlock("5.77", "9.52")));
-        pathP = string(abi.encodePacked(pathP, getTallBlock("8.31", "9.52")));
-        pathP = string(abi.encodePacked(pathP, getBlock("0.69", "12.06")));
-        pathP = string(abi.encodePacked(pathP, getBlock("0.69", "14.60")));
-        pathP = string(abi.encodePacked(pathP, getBlock("0.69", "17.14")));
-        characterPaths["P"] = pathP;
-        
-        // Letter Q
-        string memory pathQ;
-        pathQ = string(abi.encodePacked(pathQ, getTallBlock("3.23", "1.90")));
-        pathQ = string(abi.encodePacked(pathQ, getTallBlock("5.77", "1.90")));
-        pathQ = string(abi.encodePacked(pathQ, getTallBlock("8.31", "1.90")));
-        pathQ = string(abi.encodePacked(pathQ, getBlock("0.69", "4.44")));
-        pathQ = string(abi.encodePacked(pathQ, getBlock("10.85", "4.44")));
-        pathQ = string(abi.encodePacked(pathQ, getBlock("0.69", "6.98")));
-        pathQ = string(abi.encodePacked(pathQ, getBlock("10.85", "6.98")));
-        pathQ = string(abi.encodePacked(pathQ, getBlock("0.69", "9.52")));
-        pathQ = string(abi.encodePacked(pathQ, getBlock("10.85", "9.52")));
-        pathQ = string(abi.encodePacked(pathQ, getBlock("0.69", "12.06")));
-        pathQ = string(abi.encodePacked(pathQ, getBlock("10.85", "12.06")));
-        pathQ = string(abi.encodePacked(pathQ, getBlock("0.69", "14.60")));
-        pathQ = string(abi.encodePacked(pathQ, getBlock("5.77", "14.60")));
-        pathQ = string(abi.encodePacked(pathQ, getBlock("10.85", "14.60")));
-        pathQ = string(abi.encodePacked(pathQ, getTallBlock("3.23", "17.14")));
-        pathQ = string(abi.encodePacked(pathQ, getTallBlock("5.77", "17.14")));
-        pathQ = string(abi.encodePacked(pathQ, getTallBlock("8.31", "17.14")));
-        pathQ = string(abi.encodePacked(pathQ, getBlock("10.85", "19.68")));
-        characterPaths["Q"] = pathQ;
-        
-        // Letter R
-        string memory pathR;
-        pathR = string(abi.encodePacked(pathR, getTallBlock("0.69", "1.90")));
-        pathR = string(abi.encodePacked(pathR, getTallBlock("3.23", "1.90")));
-        pathR = string(abi.encodePacked(pathR, getTallBlock("5.77", "1.90")));
-        pathR = string(abi.encodePacked(pathR, getTallBlock("8.31", "1.90")));
-        pathR = string(abi.encodePacked(pathR, getBlock("0.69", "4.44")));
-        pathR = string(abi.encodePacked(pathR, getBlock("10.85", "4.44")));
-        pathR = string(abi.encodePacked(pathR, getBlock("0.69", "6.98")));
-        pathR = string(abi.encodePacked(pathR, getBlock("10.85", "6.98")));
-        pathR = string(abi.encodePacked(pathR, getTallBlock("0.69", "9.52")));
-        pathR = string(abi.encodePacked(pathR, getTallBlock("3.23", "9.52")));
-        pathR = string(abi.encodePacked(pathR, getTallBlock("5.77", "9.52")));
-        pathR = string(abi.encodePacked(pathR, getTallBlock("8.31", "9.52")));
-        pathR = string(abi.encodePacked(pathR, getBlock("0.69", "12.06")));
-        pathR = string(abi.encodePacked(pathR, getBlock("5.77", "12.06")));
-        pathR = string(abi.encodePacked(pathR, getBlock("0.69", "14.60")));
-        pathR = string(abi.encodePacked(pathR, getBlock("8.31", "14.60")));
-        pathR = string(abi.encodePacked(pathR, getBlock("0.69", "17.14")));
-        pathR = string(abi.encodePacked(pathR, getBlock("10.85", "17.14")));
-        characterPaths["R"] = pathR;
-
-        // Letter S
-        string memory pathS;
-        pathS = string(abi.encodePacked(pathS, getTallBlock("3.23", "1.90")));
-        pathS = string(abi.encodePacked(pathS, getTallBlock("5.77", "1.90")));
-        pathS = string(abi.encodePacked(pathS, getTallBlock("8.31", "1.90")));
-        pathS = string(abi.encodePacked(pathS, getBlock("0.69", "4.44")));
-        pathS = string(abi.encodePacked(pathS, getBlock("10.85", "4.44")));
-        pathS = string(abi.encodePacked(pathS, getBlock("0.69", "6.98")));
-        pathS = string(abi.encodePacked(pathS, getTallBlock("3.23", "9.52")));
-        pathS = string(abi.encodePacked(pathS, getTallBlock("5.77", "9.52")));
-        pathS = string(abi.encodePacked(pathS, getTallBlock("8.31", "9.52")));
-        pathS = string(abi.encodePacked(pathS, getBlock("10.85", "12.06")));
-        pathS = string(abi.encodePacked(pathS, getBlock("0.69", "14.60")));
-        pathS = string(abi.encodePacked(pathS, getBlock("10.85", "14.60")));
-        pathS = string(abi.encodePacked(pathS, getTallBlock("3.23", "17.14")));
-        pathS = string(abi.encodePacked(pathS, getTallBlock("5.77", "17.14")));
-        pathS = string(abi.encodePacked(pathS, getTallBlock("8.31", "17.14")));
-        characterPaths["S"] = pathS;
-        
-        // Letter T
-        string memory pathT;
-        pathT = string(abi.encodePacked(pathT, getTallBlock("0.69", "1.90")));
-        pathT = string(abi.encodePacked(pathT, getTallBlock("3.23", "1.90")));
-        pathT = string(abi.encodePacked(pathT, getTallBlock("5.77", "1.90")));
-        pathT = string(abi.encodePacked(pathT, getTallBlock("8.31", "1.90")));
-        pathT = string(abi.encodePacked(pathT, getTallBlock("10.85", "1.90")));
-        pathT = string(abi.encodePacked(pathT, getBlock("5.77", "4.44")));
-        pathT = string(abi.encodePacked(pathT, getBlock("5.77", "6.98")));
-        pathT = string(abi.encodePacked(pathT, getBlock("5.77", "9.52")));
-        pathT = string(abi.encodePacked(pathT, getBlock("5.77", "12.06")));
-        pathT = string(abi.encodePacked(pathT, getBlock("5.77", "14.60")));
-        pathT = string(abi.encodePacked(pathT, getBlock("5.77", "17.14")));
-        characterPaths["T"] = pathT;
-        
-        // Letter U
-        string memory pathU;
-        pathU = string(abi.encodePacked(pathU, getTallBlock("0.69", "1.90")));
-        pathU = string(abi.encodePacked(pathU, getTallBlock("10.85", "1.90")));
-        pathU = string(abi.encodePacked(pathU, getTallBlock("0.69", "4.44")));
-        pathU = string(abi.encodePacked(pathU, getTallBlock("10.85", "4.44")));
-        pathU = string(abi.encodePacked(pathU, getTallBlock("0.69", "7.00")));
-        pathU = string(abi.encodePacked(pathU, getTallBlock("10.85", "7.00")));
-        pathU = string(abi.encodePacked(pathU, getTallBlock("0.69", "9.54")));
-        pathU = string(abi.encodePacked(pathU, getTallBlock("10.85", "9.54")));
-        pathU = string(abi.encodePacked(pathU, getTallBlock("0.69", "12.06")));
-        pathU = string(abi.encodePacked(pathU, getTallBlock("10.85", "12.06")));
-        pathU = string(abi.encodePacked(pathU, getTallBlock("0.69", "14.60")));
-        pathU = string(abi.encodePacked(pathU, getTallBlock("10.85", "14.60")));
-        pathU = string(abi.encodePacked(pathU, getBlock("3.23", "17.14")));
-        pathU = string(abi.encodePacked(pathU, getBlock("5.77", "17.14")));
-        pathU = string(abi.encodePacked(pathU, getBlock("8.31", "17.14")));
-        characterPaths["U"] = pathU;
-        
-        // Letter V
-        string memory pathV;
-        pathV = string(abi.encodePacked(pathV, getTallBlock("0.69", "1.90")));
-        pathV = string(abi.encodePacked(pathV, getTallBlock("10.85", "1.90")));
-        pathV = string(abi.encodePacked(pathV, getTallBlock("0.69", "4.44")));
-        pathV = string(abi.encodePacked(pathV, getTallBlock("10.85", "4.44")));
-        pathV = string(abi.encodePacked(pathV, getTallBlock("0.69", "7.00")));
-        pathV = string(abi.encodePacked(pathV, getTallBlock("10.85", "7.00")));
-        pathV = string(abi.encodePacked(pathV, getBlock("3.23", "9.54")));
-        pathV = string(abi.encodePacked(pathV, getBlock("8.31", "9.54")));
-        pathV = string(abi.encodePacked(pathV, getBlock("3.23", "12.06")));
-        pathV = string(abi.encodePacked(pathV, getBlock("8.31", "12.06")));
-        pathV = string(abi.encodePacked(pathV, getBlock("3.23", "14.60")));
-        pathV = string(abi.encodePacked(pathV, getBlock("8.31", "14.60")));
-        pathV = string(abi.encodePacked(pathV, getBlock("5.77", "17.14")));
-        characterPaths["V"] = pathV;
-        
-        // Letter W
-        string memory pathW;
-        pathW = string(abi.encodePacked(pathW, getTallBlock("0.69", "1.90")));
-        pathW = string(abi.encodePacked(pathW, getTallBlock("10.85", "1.90")));
-        pathW = string(abi.encodePacked(pathW, getTallBlock("0.69", "4.44")));
-        pathW = string(abi.encodePacked(pathW, getTallBlock("10.85", "4.44")));
-        pathW = string(abi.encodePacked(pathW, getTallBlock("0.69", "7.00")));
-        pathW = string(abi.encodePacked(pathW, getTallBlock("10.85", "7.00")));
-        pathW = string(abi.encodePacked(pathW, getTallBlock("0.69", "9.54")));
-        pathW = string(abi.encodePacked(pathW, getBlock("5.77", "9.54")));
-        pathW = string(abi.encodePacked(pathW, getTallBlock("10.85", "9.54")));
-        pathW = string(abi.encodePacked(pathW, getTallBlock("0.69", "12.06")));
-        pathW = string(abi.encodePacked(pathW, getBlock("5.77", "12.06")));
-        pathW = string(abi.encodePacked(pathW, getTallBlock("10.85", "12.06")));
-        pathW = string(abi.encodePacked(pathW, getBlock("3.23", "14.60")));
-        pathW = string(abi.encodePacked(pathW, getBlock("5.77", "14.60")));
-        pathW = string(abi.encodePacked(pathW, getBlock("8.31", "14.60")));
-        pathW = string(abi.encodePacked(pathW, getTallBlock("0.69", "17.14")));
-        pathW = string(abi.encodePacked(pathW, getTallBlock("10.85", "17.14")));
-        characterPaths["W"] = pathW;
-        
-        // Letter X
-        string memory pathX;
-        pathX = string(abi.encodePacked(pathX, getTallBlock("0.69", "1.90")));
-        pathX = string(abi.encodePacked(pathX, getTallBlock("10.85", "1.90")));
-        pathX = string(abi.encodePacked(pathX, getTallBlock("0.69", "4.44")));
-        pathX = string(abi.encodePacked(pathX, getTallBlock("10.85", "4.44")));
-        pathX = string(abi.encodePacked(pathX, getBlock("3.23", "7.00")));
-        pathX = string(abi.encodePacked(pathX, getBlock("8.31", "7.00")));
-        pathX = string(abi.encodePacked(pathX, getBlock("5.77", "9.54")));
-        pathX = string(abi.encodePacked(pathX, getBlock("3.23", "12.06")));
-        pathX = string(abi.encodePacked(pathX, getBlock("8.31", "12.06")));
-        pathX = string(abi.encodePacked(pathX, getTallBlock("0.69", "14.60")));
-        pathX = string(abi.encodePacked(pathX, getTallBlock("10.85", "14.60")));
-        pathX = string(abi.encodePacked(pathX, getTallBlock("0.69", "17.14")));
-        pathX = string(abi.encodePacked(pathX, getTallBlock("10.85", "17.14")));
-        characterPaths["X"] = pathX;
-        
-        // Letter Y
-        string memory pathY;
-        pathY = string(abi.encodePacked(pathY, getTallBlock("0.69", "1.90")));
-        pathY = string(abi.encodePacked(pathY, getTallBlock("10.85", "1.90")));
-        pathY = string(abi.encodePacked(pathY, getTallBlock("0.69", "4.44")));
-        pathY = string(abi.encodePacked(pathY, getTallBlock("10.85", "4.44")));
-        pathY = string(abi.encodePacked(pathY, getBlock("3.23", "7.00")));
-        pathY = string(abi.encodePacked(pathY, getBlock("8.31", "7.00")));
-        pathY = string(abi.encodePacked(pathY, getBlock("5.77", "9.54")));
-        pathY = string(abi.encodePacked(pathY, getBlock("5.77", "12.06")));
-        pathY = string(abi.encodePacked(pathY, getBlock("5.77", "14.60")));
-        pathY = string(abi.encodePacked(pathY, getBlock("5.77", "17.14")));
-        characterPaths["Y"] = pathY;
-        
-        // Letter Z
-        string memory pathZ;
-        pathZ = string(abi.encodePacked(pathZ, getTallBlock("0.69", "1.90")));
-        pathZ = string(abi.encodePacked(pathZ, getBlock("3.23", "1.90")));
-        pathZ = string(abi.encodePacked(pathZ, getBlock("5.77", "1.90")));
-        pathZ = string(abi.encodePacked(pathZ, getBlock("8.31", "1.90")));
-        pathZ = string(abi.encodePacked(pathZ, getTallBlock("10.85", "1.90")));
-        pathZ = string(abi.encodePacked(pathZ, getTallBlock("10.85", "4.44")));
-        pathZ = string(abi.encodePacked(pathZ, getBlock("8.31", "7.00")));
-        pathZ = string(abi.encodePacked(pathZ, getBlock("5.77", "9.54")));
-        pathZ = string(abi.encodePacked(pathZ, getBlock("3.23", "12.06")));
-        pathZ = string(abi.encodePacked(pathZ, getTallBlock("0.69", "14.60")));
-        pathZ = string(abi.encodePacked(pathZ, getTallBlock("0.69", "17.14")));
-        pathZ = string(abi.encodePacked(pathZ, getBlock("3.23", "17.14")));
-        pathZ = string(abi.encodePacked(pathZ, getBlock("5.77", "17.14")));
-        pathZ = string(abi.encodePacked(pathZ, getBlock("8.31", "17.14")));
-        pathZ = string(abi.encodePacked(pathZ, getTallBlock("10.85", "17.14")));
-        characterPaths["Z"] = pathZ;
+    function lockGlyphs() external onlyOwner {
+        glyphsLocked = true;
     }
 }
